@@ -688,6 +688,7 @@ public static class VersionChecker
             Instances.InstanceTabBarViewModel.ActiveTab?.TaskQueueViewModel.ClearDownloadProgress();
             ToastHelper.Error(LangKeys.Warning.ToLocalization(), $"资源更新失败：{ex.Message}", -1);
             LoggerHelper.Error($"资源更新失败：{ex.Message}", ex);
+            throw;
         }
         finally
         {
@@ -881,14 +882,15 @@ public static class VersionChecker
             SetStatusText(textBlock, downloadSpeedTextBlock, LangKeys.Downloading.ToLocalization());
             SetProgress(progress, 0);
             (var downloadStatus, tempZipFilePath) = await DownloadWithRetry(downloadUrl, tempZipFilePath, progress, 3, textBlock, downloadSpeedTextBlock);
-            LoggerHelper.Info($"已下载更新包到临时文件：文件={tempZipFilePath}");
             if (!downloadStatus)
             {
+                LoggerHelper.Warning($"资源包下载失败：文件={tempZipFilePath}");
                 Dismiss(sukiToast);
                 ToastHelper.Warn(LangKeys.Warning.ToLocalization(), LangKeys.DownloadFailed.ToLocalization());
                 Instances.RootViewModel.SetUpdating(false);
-                return;
+                throw new IOException($"资源包下载失败：{tempZipFilePath}");
             }
+            LoggerHelper.Info($"已下载更新包到临时文件：文件={tempZipFilePath}");
         }
         else
         {
@@ -2303,11 +2305,21 @@ public static class VersionChecker
         {
             try
             {
-                return await DownloadFileAsync(url, savePath, progress, downloadSizeTextBlock, downloadSpeedTextBlock);
+                var result = await DownloadFileAsync(url, savePath, progress, downloadSizeTextBlock, downloadSpeedTextBlock);
+                if (result.Item1)
+                    return result;
+
+                if (File.Exists(result.Item2))
+                    File.Delete(result.Item2);
+                if (i < retries - 1)
+                {
+                    LoggerHelper.Warning($"下载失败，准备重试：第 {i + 1}/{retries} 次");
+                    await Task.Delay(2000 * (i + 1));
+                }
             }
-            catch (WebException ex) when (i < retries - 1)
+            catch (Exception ex) when (i < retries - 1)
             {
-                LoggerHelper.Warning($"下载失败，准备重试：第 {i + 1}/{retries} 次，状态={ex.Status}");
+                LoggerHelper.Warning($"下载失败，准备重试：第 {i + 1}/{retries} 次，原因={ex.Message}");
                 await Task.Delay(2000 * (i + 1));
             }
         }
@@ -3268,7 +3280,7 @@ public static class VersionChecker
         var targetFilePath = filePath;
         try
         {
-            using var httpClient = CreateHttpClientWithProxy();
+            using var httpClient = CreateHttpClientWithProxy(TimeSpan.FromMinutes(20));
             httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("request");
             httpClient.DefaultRequestHeaders.Accept.Clear();
             httpClient.DefaultRequestHeaders.Accept.ParseAdd("*/*");
@@ -3310,19 +3322,13 @@ public static class VersionChecker
             await using var contentStream = await response.Content.ReadAsStreamAsync();
             await using var fileStream = new FileStream(targetFilePath, FileMode.Create, FileAccess.Write);
 
-            var buffer = new byte[8192];
             var stopwatch = Stopwatch.StartNew();
             var lastSpeedUpdateTime = startTime;
             long lastTotalBytesRead = 0;
 
-            while (true)
+            await DownloadStreamCopier.CopyAsync(contentStream, fileStream, totalBytes, TimeSpan.FromMinutes(2), downloaded =>
             {
-                var bytesRead = await contentStream.ReadAsync(buffer);
-                if (bytesRead == 0) break;
-
-                await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead));
-
-                totalBytesRead += bytesRead;
+                totalBytesRead = downloaded;
                 var currentTime = DateTime.Now;
 
 
@@ -3338,7 +3344,7 @@ public static class VersionChecker
                 double progressPercentage;
                 if (totalBytes.HasValue && totalBytes.Value > 0)
                 {
-                    progressPercentage = Math.Min((double)totalBytesRead / totalBytes.Value * 100, 100);
+                    progressPercentage = Math.Min((double)totalBytesRead / totalBytes.Value * 100, 99);
                 }
                 else
                 {
@@ -3359,7 +3365,7 @@ public static class VersionChecker
                     SetDownloadInfo(downloadSizeTextBlock, downloadSpeedTextBlock, totalBytesRead, totalBytes ?? totalBytesRead, bytesPerSecond);
                     stopwatch.Restart();
                 }
-            }
+            });
 
             SetProgress(progressBar, 100);
             SetDownloadInfo(downloadSizeTextBlock, downloadSpeedTextBlock, totalBytesRead, totalBytes ?? totalBytesRead, bytesPerSecond);
@@ -3372,6 +3378,11 @@ public static class VersionChecker
                 ));
 
             return (true, targetFilePath);
+        }
+        catch (TimeoutException timeoutEx)
+        {
+            LoggerHelper.Error($"下载超时：原因={timeoutEx.Message}", timeoutEx);
+            return (false, targetFilePath);
         }
         catch (HttpRequestException httpEx)
         {
@@ -4120,7 +4131,7 @@ public static class VersionChecker
     }
 
 
-    public static HttpClient CreateHttpClientWithProxy()
+    public static HttpClient CreateHttpClientWithProxy(TimeSpan? timeout = null)
     {
         bool disableSSL = File.Exists(Path.Combine(AppContext.BaseDirectory, "NO_SSL"));
 
@@ -4176,7 +4187,7 @@ public static class VersionChecker
         {
             return new HttpClient(handler)
             {
-                Timeout = TimeSpan.FromSeconds(60),
+                Timeout = timeout ?? TimeSpan.FromSeconds(60),
                 DefaultRequestVersion = HttpVersion.Version11
             };
         }
@@ -4213,7 +4224,7 @@ public static class VersionChecker
                     handler.UseProxy = true;
                     return new HttpClient(handler)
                     {
-                        Timeout = TimeSpan.FromSeconds(60),
+                        Timeout = timeout ?? TimeSpan.FromSeconds(60),
                         DefaultRequestVersion = HttpVersion.Version11
                     };
                 default:
@@ -4221,7 +4232,7 @@ public static class VersionChecker
                     handler.UseProxy = true;
                     return new HttpClient(handler)
                     {
-                        Timeout = TimeSpan.FromSeconds(60),
+                        Timeout = timeout ?? TimeSpan.FromSeconds(60),
                         DefaultRequestVersion = HttpVersion.Version11
                     };
             }
@@ -4231,7 +4242,7 @@ public static class VersionChecker
             LoggerHelper.Error($"初始化网络代理失败：原因={ex.Message}", ex);
             return new HttpClient(handler)
             {
-                Timeout = TimeSpan.FromSeconds(60),
+                Timeout = timeout ?? TimeSpan.FromSeconds(60),
                 DefaultRequestVersion = HttpVersion.Version11
             };
         }
