@@ -210,6 +210,22 @@ public partial class App : Application
                 Services = services.BuildServiceProvider();
 
                 MaaProcessorManager.Instance.LoadInstanceConfig();
+                if (TaskParamDump.IsRequested)
+                {
+                    var exitCode = 0;
+                    try
+                    {
+                        exitCode = TaskParamDump.Write();
+                    }
+                    catch (Exception ex)
+                    {
+                        LoggerHelper.Error($"参数导出失败：{ex.Message}", ex);
+                        exitCode = 1;
+                    }
+
+                    Environment.Exit(exitCode);
+                }
+
                 if (!OperatingSystem.IsAndroid())
                 {
                     TelemetryService.InitializeFromInterface();

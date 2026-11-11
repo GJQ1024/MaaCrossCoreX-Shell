@@ -10,6 +10,7 @@ public static class AppPaths
     private static string _configDirectory = string.Empty;
     private static string _logsDirectory = string.Empty;
     private static string _tempDirectory = string.Empty;
+    private static string? _dataRootOverride;
 
     public static string InstallRoot => AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
     public static string DataRoot { get; private set; } = InstallRoot;
@@ -40,15 +41,28 @@ public static class AppPaths
         Path.Combine(InstallRoot, "config").TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
         StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// 仅供离线诊断（如 --dump-task-params）指定数据目录，必须在 <see cref="Initialize"/> 之前调用。
+    /// 正常启动路径不会设置该覆盖。
+    /// </summary>
+    public static void SetDataRootOverride(string root)
+    {
+        if (_initialized)
+            throw new InvalidOperationException("数据目录覆盖必须在 AppPaths.Initialize 之前设置。");
+
+        _dataRootOverride = Path.GetFullPath(root);
+        DataRoot = _dataRootOverride;
+    }
+
     public static void Initialize()
     {
         if (_initialized)
             return;
 
-        DataRoot = InstallRoot;
-        _configDirectory = ResolveConfigDirectory();
-        _logsDirectory = ResolveLogsDirectory();
-        _tempDirectory = ResolveTempDirectory();
+        DataRoot = _dataRootOverride ?? InstallRoot;
+        _configDirectory = _dataRootOverride != null ? Path.Combine(DataRoot, "config") : ResolveConfigDirectory();
+        _logsDirectory = _dataRootOverride != null ? Path.Combine(DataRoot, "logs") : ResolveLogsDirectory();
+        _tempDirectory = _dataRootOverride != null ? Path.Combine(DataRoot, "temp") : ResolveTempDirectory();
 
         Directory.CreateDirectory(ConfigDirectory);
         Directory.CreateDirectory(InstancesDirectory);

@@ -3747,6 +3747,7 @@ public class MaaProcessor
     } = new();
     private DateTime? _startTime;
     private List<DragItemViewModel> _tempTasks = [];
+    private bool _suppressTaskParamLog;
 
     public async Task StartTask(List<DragItemViewModel>? tasks, bool onlyStart = false, bool checkUpdate = false,
         bool retainCompletedStates = false, IReadOnlyCollection<DragItemViewModel>? retainedCompletedTasks = null)
@@ -4173,7 +4174,8 @@ public class MaaProcessor
         // tasks = tasks.MergeMaaNodes(taskModels);
         var logParams = Interface?.Option?.Values.Any(option => option.Inputs?.Any(input => input.IsPassword) == true) == true
             ? "[REDACTED]" : taskParams;
-        LoggerHelper.Info($"[任务管线合并] 任务#{index} 名称=[{task.Name ?? task.InterfaceItem?.Name ?? "<未命名>"}] 入口=[{task.InterfaceItem?.Entry ?? "<空>"}] 参数={logParams}");
+        if (!_suppressTaskParamLog)
+            LoggerHelper.Info($"[任务管线合并] 任务#{index} 名称=[{task.Name ?? task.InterfaceItem?.Name ?? "<未命名>"}] 入口=[{task.InterfaceItem?.Entry ?? "<空>"}] 参数={logParams}");
         return new NodeAndParam
         {
             Index = index,
@@ -4185,6 +4187,37 @@ public class MaaProcessor
             SourceItem = task,
             RunId = runId
         };
+    }
+
+    public sealed record TaskParamSnapshot(string Task, string? Entry, int? Count, string Param);
+
+    /// <summary>
+    /// 离线复用 <see cref="CreateNodeAndParam"/> 产出当前配置下所有可执行任务的最终参数。
+    /// 不连接设备、不启动任务、不写「任务管线合并」日志，仅供 dry-run 对照使用。
+    /// </summary>
+    public IReadOnlyList<TaskParamSnapshot> DumpTaskParams()
+    {
+        var tasks = FilterExecutableTasks(ViewModel?.TaskItemViewModels);
+        var snapshots = new List<TaskParamSnapshot>(tasks.Count);
+        _suppressTaskParamLog = true;
+        try
+        {
+            for (var i = 0; i < tasks.Count; i++)
+            {
+                var node = CreateNodeAndParam(tasks[i], i + 1, 0);
+                snapshots.Add(new TaskParamSnapshot(
+                    node.Name ?? node.SourceItem?.InterfaceItem?.Name ?? string.Empty,
+                    node.Entry,
+                    node.Count,
+                    node.Param ?? "{}"));
+            }
+        }
+        finally
+        {
+            _suppressTaskParamLog = false;
+        }
+
+        return snapshots;
     }
 
     /// <summary>

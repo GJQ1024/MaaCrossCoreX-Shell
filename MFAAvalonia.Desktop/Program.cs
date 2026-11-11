@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using MaaFramework.Binding;
 using MFAAvalonia;
+using MFAAvalonia.Extensions.MaaFW;
 using MFAAvalonia.Helper;
 using MFAAvalonia.ViewModels.Windows;
 using Newtonsoft.Json;
@@ -32,6 +33,9 @@ sealed class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // 隐藏的离线参数导出开关，必须在 AppPaths / Avalonia 初始化前解析。
+        TaskParamDump.TryParseArguments(args);
+
         var waitArgumentIndex = Array.FindIndex(args, argument => argument.StartsWith("--wait-for-process-exit=", StringComparison.Ordinal));
         if (waitArgumentIndex >= 0)
         {
@@ -68,16 +72,18 @@ sealed class Program
         {
             var executablePath = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "MFAAvalonia.exe");
             var instanceKey = AppRuntime.CreateInstanceKey(executablePath);
+            if (TaskParamDump.IsRequested)
+                instanceKey += "-paramdump";
             AppRuntime.Initialize(args, instanceKey);
             TelemetryService.InitializeBootstrapFromInterface(AppContext.BaseDirectory);
 
-            if (!AppRuntime.IsNewInstance && AppRuntime.TryForwardLaunchCommand())
+            if (!TaskParamDump.IsRequested && !AppRuntime.IsNewInstance && AppRuntime.TryForwardLaunchCommand())
             {
                 AppRuntime.ReleaseMutex();
                 return;
             }
 
-            if (!AppRuntime.IsNewInstance)
+            if (!TaskParamDump.IsRequested && !AppRuntime.IsNewInstance)
                 _ = AppRuntime.TryRecoverUnresponsiveInstance();
 
             CheckSkiaAvailability();
