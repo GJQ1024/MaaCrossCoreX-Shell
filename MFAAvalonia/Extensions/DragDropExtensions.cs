@@ -467,6 +467,20 @@ public class DragDropExtensions
         if (targetIndex == 0 && items.Count > 0 && items[0] is Helper.ValueType.DragItemViewModel firstItem && firstItem.IsResourceOptionItem)
             return false;
 
+        // 分组约束：只允许落在同组任务的相邻位置，避免跨组拖动破坏分组区间。
+        // 队列中没有任何分组任务时（旧 interface.json）保持原有行为。
+        if (items.OfType<Helper.ValueType.DragItemViewModel>().Any(item => item.QueueGroupName != null))
+        {
+            var anchorIndex = Math.Min(targetIndex, items.Count - 1);
+            if (anchorIndex < 0)
+                return false;
+
+            var sourceGroup = (items[sourceIndex] as Helper.ValueType.DragItemViewModel)?.QueueGroupName;
+            var anchorGroup = (items[anchorIndex] as Helper.ValueType.DragItemViewModel)?.QueueGroupName;
+            if (!string.Equals(sourceGroup, anchorGroup, StringComparison.Ordinal))
+                return false;
+        }
+
         return true;
     }
 

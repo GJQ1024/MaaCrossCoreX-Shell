@@ -569,6 +569,13 @@ public partial class TaskQueueView : UserControl
         _lastTaskMenuItem = control.DataContext as DragItemViewModel;
     }
 
+    private void TaskGroupHeader_OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is Control { DataContext: DragItemViewModel item })
+            (DataContext as TaskQueueViewModel)?.ToggleTaskGroup(item.QueueGroupName);
+        e.Handled = true;
+    }
+
     private static void ApplyTaskMenuEnabledStates(ContextMenu menu, DragItemViewModel? currentItem)
     {
         var isResourceOptionItem = currentItem?.IsResourceOptionItem == true;
