@@ -184,10 +184,44 @@ public partial class DragItemViewModel : ObservableObject
             }
 
             SetProperty(ref _interfaceItem, value);
+            OnPropertyChanged(nameof(QueueGroupName));
             UpdateDisplayName();
             UpdateIconFromInterfaceItem();
         }
     }
+
+    /// <summary>
+    /// 任务所属分组（取 interface.json 任务级 group 的第一项）。
+    /// 无分组或非任务项返回 null。
+    /// </summary>
+    [JsonIgnore]
+    public string? QueueGroupName => InterfaceItem?.Group?.FirstOrDefault(group => !string.IsNullOrWhiteSpace(group));
+
+    /// <summary>
+    /// 是否承担所在分组区间的标题，由 TaskQueueViewModel.RefreshTaskGroups 统一计算。
+    /// </summary>
+    [ObservableProperty] [JsonIgnore] private bool _isGroupHeader;
+
+    /// <summary>
+    /// 所在分组当前是否折叠。仅影响界面显示，不影响勾选与执行。
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTaskRowVisible))]
+    [NotifyPropertyChangedFor(nameof(IsQueueContainerVisible))]
+    [JsonIgnore]
+    private bool _isGroupCollapsed;
+
+    /// <summary>
+    /// 分组标题显示名，仅 IsGroupHeader 为 true 时有效。
+    /// </summary>
+    [ObservableProperty] [JsonIgnore] private string _groupLabel = string.Empty;
+
+    [JsonIgnore] public bool IsTaskRowVisible => !IsGroupCollapsed;
+
+    /// <summary>
+    /// 折叠时保留承担标题的那一行，组内其余行不占位。
+    /// </summary>
+    [JsonIgnore] public bool IsQueueContainerVisible => IsGroupHeader || !IsGroupCollapsed;
 
     [ObservableProperty] private bool _isVisible = true;
 

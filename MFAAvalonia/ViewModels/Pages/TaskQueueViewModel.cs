@@ -25,6 +25,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -37,6 +38,7 @@ public partial class TaskQueueViewModel : ViewModelBase, IDisposable
     private readonly MaaProcessor _processorField;
     private readonly DispatcherTimer _taskRunElapsedTimer;
     private long _taskRunId;
+    private readonly Dictionary<string, bool> _taskGroupExpanded = new(StringComparer.Ordinal);
     private string? _savedControllerName;
     public MaaProcessor Processor => _processorField;
 
@@ -649,6 +651,7 @@ public partial class TaskQueueViewModel : ViewModelBase, IDisposable
             LoggerHelper.Error($"同步控制器与资源状态失败：控制器={CurrentController}，资源={CurrentResource}，原因={e.Message}", e);
             _isSyncing = false;
         }
+        RefreshTaskGroups();
     }
 
 
@@ -668,8 +671,64 @@ public partial class TaskQueueViewModel : ViewModelBase, IDisposable
 
     partial void OnTaskItemViewModelsChanged(ObservableCollection<DragItemViewModel> value)
     {
+        value.CollectionChanged += OnTaskItemCollectionChanged;
+        RefreshTaskGroups();
         if (ConfigurationManager.IsSwitching) return;
         Processor.InstanceConfiguration.SetValue(ConfigurationKeys.TaskItems, value.Where(model => !model.IsResourceOptionItem).Select(model => model.InterfaceItem).ToList());
+    }
+
+    private void OnTaskItemCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        RefreshTaskGroups();
+    }
+
+    /// <summary>
+    /// 按队列当前顺序刷新分组标题：仅在连续同组任务的第一项上显示标题。
+    /// 只影响显示，不改变队列顺序与执行语义；无 group 字段的任务保持平铺。
+    /// </summary>
+    public void RefreshTaskGroups()
+    {
+        string? previousGroup = null;
+        foreach (var item in TaskItemViewModels)
+        {
+            var group = item.QueueGroupName;
+            var isHeader = group != null && !string.Equals(group, previousGroup, StringComparison.Ordinal);
+            item.IsGroupHeader = isHeader;
+            item.GroupLabel = isHeader ? ResolveTaskGroupLabel(group!) : string.Empty;
+            item.IsGroupCollapsed = group != null && !IsTaskGroupExpanded(group);
+            previousGroup = group;
+        }
+    }
+
+    /// <summary>
+    /// 切换分组折叠状态（仅影响显示）。
+    /// </summary>
+    public void ToggleTaskGroup(string? groupName)
+    {
+        if (string.IsNullOrEmpty(groupName)) return;
+        _taskGroupExpanded[groupName] = !IsTaskGroupExpanded(groupName);
+        RefreshTaskGroups();
+    }
+
+    private bool IsTaskGroupExpanded(string groupName)
+    {
+        if (_taskGroupExpanded.TryGetValue(groupName, out var expanded))
+            return expanded;
+
+        var definition = MaaProcessor.Interface?.Group?
+            .FirstOrDefault(group => string.Equals(group.Name, groupName, StringComparison.Ordinal));
+        return definition?.DefaultExpand ?? true;
+    }
+
+    private static string ResolveTaskGroupLabel(string groupName)
+    {
+        var definition = MaaProcessor.Interface?.Group?
+            .FirstOrDefault(group => string.Equals(group.Name, groupName, StringComparison.Ordinal));
+        if (definition == null)
+            return groupName;
+        if (string.IsNullOrWhiteSpace(definition.Label))
+            return definition.Name ?? groupName;
+        return LanguageHelper.GetLocalizedDisplayName(definition.Label, definition.Name ?? groupName);
     }
 
     [RelayCommand]
@@ -1742,6 +1801,8 @@ public partial class TaskQueueViewModel : ViewModelBase, IDisposable
             {
                 SetEmptyDeviceState(CurrentController);
             }
+
+            RefreshTaskGroups();
         });
     }
 
