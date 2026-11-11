@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:helper="clr-namespace:MFAAvalonia.Helper"
+             xmlns:markup="https://codewf.com"
+             xmlns:settings="clr-namespace:MFAAvalonia.ViewModels.UsersControls.Settings"
+             xmlns:suki="https://github.com/kikipoulet/SukiUI"
+             xmlns:userControls="clr-namespace:MFAAvalonia.Views.UserControls.Settings"
+             x:Class="MFAAvalonia.Views.Pages.ScheduleView"
+             x:DataType="settings:TimerSettingsUserControlModel"
+             d:DesignHeight="600"
+             d:DesignWidth="800"
+             mc:Ignorable="d">
+    <Design.DataContext>
+        <settings:TimerSettingsUserControlModel />
+    </Design.DataContext>
+    <Grid Margin="16" RowDefinitions="Auto,*">
+        <TextBlock
+            Margin="8,0,0,12"
+            FontSize="24"
+            FontWeight="Bold"
+            Text="{markup:I18n {x:Static helper:LangKeys.ScheduleSettings}}" />
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Spacing="8">
+                <suki:GlassCard Classes="ScenicPanel" Padding="20">
+                    <DockPanel>
+                        <NumericUpDown
+                            Width="150"
+                            DockPanel.Dock="Right"
+                            FormatString="0"
+                            Increment="5"
+                            Maximum="720"
+                            Minimum="0"
+                            Value="{Binding TimerModels.CatchUpWindowValue}"
+                            VerticalAlignment="Top" />
+                        <StackPanel>
+                            <TextBlock
+                                FontSize="16"
+                                FontWeight="DemiBold"
+                                Text="{markup:I18n {x:Static helper:LangKeys.ScheduleCatchUpWindow}}" />
+                            <TextBlock
+                                Margin="0,12,70,0"
+                                Foreground="{DynamicResource SukiLowText}"
+                                Text="{markup:I18n {x:Static helper:LangKeys.ScheduleCatchUpWindowTip}}"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </DockPanel>
+                </suki:GlassCard>
+                <userControls:TimerSettingsUserControl />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

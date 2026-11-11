@@ -912,6 +912,9 @@ public partial class TaskQueueViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void AddTask()
     {
+        if (IsRunning)
+            return;
+
         using var _ = BeginUiLogScope("OpenAddTaskDialog");
         LoggerHelper.UserAction("打开添加任务对话框", DescribeCurrentSelection(),
             operation: "OpenAddTaskDialog", instanceId: Processor.InstanceId, instanceName: InstanceName);

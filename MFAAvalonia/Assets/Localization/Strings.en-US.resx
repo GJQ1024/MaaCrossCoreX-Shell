@@ -891,6 +891,39 @@
     <data name="ScheduleSettings" xml:space="preserve">
         <value>Schedule</value>
     </data>
+    <data name="ScheduleLastRun" xml:space="preserve">
+        <value>Last run</value>
+    </data>
+    <data name="ScheduleNeverRun" xml:space="preserve">
+        <value>Not yet triggered</value>
+    </data>
+    <data name="ScheduleRunning" xml:space="preserve">
+        <value>Running</value>
+    </data>
+    <data name="ScheduleDispatched" xml:space="preserve">
+        <value>Triggered</value>
+    </data>
+    <data name="ScheduleCatchUpWindow" xml:space="preserve">
+        <value>Catch-up window (minutes)</value>
+    </data>
+    <data name="ScheduleCatchUpWindowTip" xml:space="preserve">
+        <value>A missed schedule runs once within this window. Set to 0 to disable catch-up.</value>
+    </data>
+    <data name="ScheduleSkippedBusy" xml:space="preserve">
+        <value>Skipped: device busy or tasks already running</value>
+    </data>
+    <data name="ScheduleSkippedMissed" xml:space="preserve">
+        <value>Missed: outside the catch-up window</value>
+    </data>
+    <data name="ScheduleSkippedEmpty" xml:space="preserve">
+        <value>Skipped: no task selected in the target queue</value>
+    </data>
+    <data name="ScheduleSkippedMissing" xml:space="preserve">
+        <value>Skipped: target instance unavailable</value>
+    </data>
+    <data name="ScheduleSkippedSerial" xml:space="preserve">
+        <value>Skipped: another schedule already started this minute</value>
+    </data>
     <data name="ScreencapCost" xml:space="preserve">
         <value>Screenshot time: {0}ms({1})</value>
     </data>

@@ -51,6 +51,11 @@
                                                                 IconVariant=Regular}"
                                                PageContent="{extensions:ServiceProvider ServiceType={x:Type pages:InstanceContainerView}}" />
                         <suki:SukiSideMenuItem IsContentMovable="False"
+                                               Header="{markup:I18n {x:Static helper:LangKeys.ScheduleSettings}}"
+                                               Icon="{fluent:FluentIcon Icon=Calendar,
+                                                                IconVariant=Regular}"
+                                               PageContent="{extensions:ServiceProvider ServiceType={x:Type pages:ScheduleView}}" />
+                        <suki:SukiSideMenuItem IsContentMovable="False"
                                                Header="{markup:I18n {x:Static helper:LangKeys.Monitor}}"
                                                PageContent="{extensions:ServiceProvider ServiceType={x:Type pages:MonitorView}}">
                             <suki:SukiSideMenuItem.Icon>

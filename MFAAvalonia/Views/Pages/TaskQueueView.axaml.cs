@@ -373,6 +373,8 @@ public partial class TaskQueueView : UserControl
 
     private void PasteTask(object? sender, RoutedEventArgs e)
     {
+        if (DataContext is TaskQueueViewModel { IsRunning: true })
+            return;
         var menuItem = sender as MenuItem;
         if (menuItem?.DataContext is DragItemViewModel taskItemViewModel)
         {
@@ -425,7 +427,7 @@ public partial class TaskQueueView : UserControl
 
     private void DeleteTaskItem(DragItemViewModel taskItemViewModel)
     {
-        if (DataContext is not TaskQueueViewModel vm)
+        if (DataContext is not TaskQueueViewModel vm || vm.IsRunning)
         {
             return;
         }
@@ -580,7 +582,7 @@ public partial class TaskQueueView : UserControl
     {
         var isResourceOptionItem = currentItem?.IsResourceOptionItem == true;
         var canRunNow = !isResourceOptionItem && Instances.RootViewModel.Idle;
-        var canEdit = !isResourceOptionItem;
+        var canEdit = !isResourceOptionItem && Instances.RootViewModel.Idle;
 
         // 仅统计 MenuItem（不包含 Separator），顺序固定：
         // 0 单独运行, 1 运行当前及后续勾选, 2 复制, 3 粘贴, 4 备注, 5 删除

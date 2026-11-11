@@ -309,6 +309,17 @@ public static class LangKeys
 	public static readonly string SavePipelineWarning = "SavePipelineWarning";
 	public static readonly string SaveSuccessMessage = "SaveSuccessMessage";
 	public static readonly string ScheduleSettings = "ScheduleSettings";
+	public static readonly string ScheduleLastRun = "ScheduleLastRun";
+	public static readonly string ScheduleNeverRun = "ScheduleNeverRun";
+	public static readonly string ScheduleRunning = "ScheduleRunning";
+	public static readonly string ScheduleDispatched = "ScheduleDispatched";
+	public static readonly string ScheduleCatchUpWindow = "ScheduleCatchUpWindow";
+	public static readonly string ScheduleCatchUpWindowTip = "ScheduleCatchUpWindowTip";
+	public static readonly string ScheduleSkippedBusy = "ScheduleSkippedBusy";
+	public static readonly string ScheduleSkippedMissed = "ScheduleSkippedMissed";
+	public static readonly string ScheduleSkippedEmpty = "ScheduleSkippedEmpty";
+	public static readonly string ScheduleSkippedMissing = "ScheduleSkippedMissing";
+	public static readonly string ScheduleSkippedSerial = "ScheduleSkippedSerial";
 	public static readonly string ScreencapCost = "ScreencapCost";
 	public static readonly string ScreencapErrorTip = "ScreencapErrorTip";
 	public static readonly string ScreencapWarningTip = "ScreencapWarningTip";

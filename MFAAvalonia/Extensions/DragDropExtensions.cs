@@ -403,6 +403,14 @@ public class DragDropExtensions
     {
         if (sender is not ListBox listBox || listBox.ItemsSource is not IList items || !e.DataTransfer.TryGetText(out string sourceIndexStr) || !int.TryParse(sourceIndexStr, out int sourceIndex))
             return;
+
+        if (listBox.DataContext is MFAAvalonia.ViewModels.Pages.TaskQueueViewModel { IsRunning: true })
+        {
+            e.DragEffects = DragDropEffects.None;
+            e.Handled = true;
+            ClearAdorner(listBox);
+            return;
+        }
         var position = e.GetPosition(listBox);
         var targetIndex = GetTargetIndex(listBox, position);
 
@@ -427,6 +435,14 @@ public class DragDropExtensions
     {
         if (sender is not ListBox listBox || listBox.ItemsSource is not IList items || !e.DataTransfer.TryGetText(out string sourceIndexStr) || !int.TryParse(sourceIndexStr, out int sourceIndex))
             return;
+
+        if (listBox.DataContext is MFAAvalonia.ViewModels.Pages.TaskQueueViewModel { IsRunning: true })
+        {
+            e.DragEffects = DragDropEffects.None;
+            e.Handled = true;
+            ClearAdorner(listBox);
+            return;
+        }
         var position = e.GetPosition(listBox);
         var targetIndex = GetTargetIndex(listBox, position);
 

@@ -78,6 +78,30 @@ public partial class TimerScheduleConfig : ObservableObject
     }
 
     /// <summary>
+    /// 获取不晚于 <paramref name="now"/> 的最近一个计划触发时间。
+    /// 最多回看 62 天，覆盖按月配置跨月与闰年场景。
+    /// </summary>
+    public DateTime? GetLatestPlannedTime(TimeSpan timeOfDay, DateTime now)
+    {
+        var date = now.Date;
+        for (var i = 0; i <= 62; i++)
+        {
+            var candidate = date.AddDays(-i) + timeOfDay;
+            if (candidate > now)
+                continue;
+            if (ShouldTrigger(candidate))
+                return candidate;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 计划触发的幂等键（分钟精度）
+    /// </summary>
+    public static string ToPlanKey(DateTime plan) => plan.ToString("yyyyMMddHHmm");
+
+    /// <summary>
     /// 序列化为字符串存储
     /// </summary>
     public string Serialize()

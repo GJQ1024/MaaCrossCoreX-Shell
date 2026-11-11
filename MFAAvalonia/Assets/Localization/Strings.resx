@@ -900,6 +900,39 @@
     <data name="ScheduleSettings" xml:space="preserve">
         <value>定时执行</value>
     </data>
+    <data name="ScheduleLastRun" xml:space="preserve">
+        <value>上次触发</value>
+    </data>
+    <data name="ScheduleNeverRun" xml:space="preserve">
+        <value>尚未触发</value>
+    </data>
+    <data name="ScheduleRunning" xml:space="preserve">
+        <value>运行中</value>
+    </data>
+    <data name="ScheduleDispatched" xml:space="preserve">
+        <value>已触发</value>
+    </data>
+    <data name="ScheduleCatchUpWindow" xml:space="preserve">
+        <value>补触发窗口（分钟）</value>
+    </data>
+    <data name="ScheduleCatchUpWindowTip" xml:space="preserve">
+        <value>错过的定时点会在此窗口内补跑一次；设为 0 表示不补跑。</value>
+    </data>
+    <data name="ScheduleSkippedBusy" xml:space="preserve">
+        <value>已跳过：设备忙或已有任务在运行</value>
+    </data>
+    <data name="ScheduleSkippedMissed" xml:space="preserve">
+        <value>已错过：超出补触发窗口</value>
+    </data>
+    <data name="ScheduleSkippedEmpty" xml:space="preserve">
+        <value>已跳过：目标队列没有勾选任务</value>
+    </data>
+    <data name="ScheduleSkippedMissing" xml:space="preserve">
+        <value>已跳过：目标实例不可用</value>
+    </data>
+    <data name="ScheduleSkippedSerial" xml:space="preserve">
+        <value>已跳过：同分钟已有其他定时启动</value>
+    </data>
     <data name="ScreencapCost" xml:space="preserve">
         <value>截图耗时: {0}ms({1})</value>
     </data>

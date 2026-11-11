@@ -36,6 +36,17 @@ using MaaTasker = MaaFramework.Binding.MaaTasker;
 using MaaToolkit = MaaFramework.Binding.MaaToolkit;
 
 namespace MFAAvalonia.Extensions.MaaFW;
+
+public sealed class TaskRunFinishedEventArgs : EventArgs
+{
+    public TaskRunFinishedEventArgs(MFATask.MFATaskStatus status)
+    {
+        Status = status;
+    }
+
+    public MFATask.MFATaskStatus Status { get; }
+}
+
 #pragma warning  disable CS4014 // 由于此调用不会等待，因此在此调用完成之前将会继续执行当前方法.
 #pragma warning  disable CS1998 // 此异步方法缺少 "await" 运算符，将以同步方式运行。
 #pragma warning disable CA1416 //  可在 'linux', 'macOS/OSX', 'windows' 上访问此调用站点。
@@ -48,6 +59,13 @@ public class MaaProcessor
     private static readonly Random Random = new();
     private int _taskQueueTotal;
     private int _isTaskRunActive;
+    private MFATask.MFATaskStatus _lastRunStatus = MFATask.MFATaskStatus.NOT_STARTED;
+
+    /// <summary>
+    /// 一轮任务链结束（成功/失败/中断）后触发，供定时调度记录结果。
+    /// 在 UI 线程上触发。
+    /// </summary>
+    public event EventHandler<TaskRunFinishedEventArgs>? TaskRunFinished;
     private readonly BlockingCollection<Func<Task>> _commandQueue = new();
     private readonly object _commandThreadLock = new();
     private readonly CancellationTokenSource _commandThreadCts = new();
@@ -3622,6 +3640,7 @@ public class MaaProcessor
             return Task.CompletedTask;
         }
 
+        _lastRunStatus = MFATask.MFATaskStatus.FAILED;
         EndTaskRun();
         return Task.CompletedTask;
     }
@@ -3631,6 +3650,7 @@ public class MaaProcessor
         if (Interlocked.CompareExchange(ref _isTaskRunActive, 1, 0) != 0)
             return false;
 
+        _lastRunStatus = MFATask.MFATaskStatus.NOT_STARTED;
         DispatcherHelper.PostOnMainThread(() =>
         {
             if (ViewModel != null)
@@ -3646,6 +3666,7 @@ public class MaaProcessor
         {
             if (ViewModel != null)
                 ViewModel.IsRunning = TaskQueue.Count > 0;
+            TaskRunFinished?.Invoke(this, new TaskRunFinishedEventArgs(_lastRunStatus));
         });
     }
 
@@ -3659,10 +3680,12 @@ public class MaaProcessor
         catch (OperationCanceledException)
         {
             Status = MFATask.MFATaskStatus.STOPPED;
+            _lastRunStatus = MFATask.MFATaskStatus.STOPPED;
         }
         catch (Exception ex)
         {
             Status = MFATask.MFATaskStatus.FAILED;
+            _lastRunStatus = MFATask.MFATaskStatus.FAILED;
             LoggerHelper.Error($"任务链执行异常：reason={ex.Message}", ex);
             Stop(Status, true, onlyStart);
         }
@@ -3817,6 +3840,7 @@ public class MaaProcessor
             await TaskManager.RunTaskAsync(async () =>
             {
                 var queueResult = await ExecuteTasks(token);
+                _lastRunStatus = Status;
                 Stop(Status, true, onlyStart, queueCompleted: queueResult.QueueCompleted);
             }, token: token, name: "启动任务");
         }

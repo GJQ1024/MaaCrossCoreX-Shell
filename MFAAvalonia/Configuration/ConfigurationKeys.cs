@@ -13,6 +13,7 @@ public static class ConfigurationKeys
     public const string WelcomeAnnouncementSnapshot = "AnnouncementInfo.WelcomeSnapshot";
     public const string DoNotShowChangelogAgain = "Changelog.DoNotShowAgain";
     public const string ForceScheduledStart = "ForceScheduledStart";
+    public const string TimerCatchUpWindowMinutes = "Timer.CatchUpWindowMinutes";
     public const string CustomConfig = "CustomConfig";
     public const string NoAutoStart = "NoAutoStart";
     public const string HelpImproveSoftware = "HelpImproveSoftware";

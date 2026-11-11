@@ -1,5 +1,6 @@
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using MaaFramework.Binding;
 using CommunityToolkit.Mvvm.Input;
 using MFAAvalonia.Configuration;
 using MFAAvalonia.Extensions;
@@ -25,11 +26,29 @@ public partial class TimerModel : ViewModelBase
     public static TimerModel Instance => LazyInstance.Value;
 
     private readonly DispatcherTimer _dispatcherTimer;
+    private readonly Dictionary<int, PendingTimerTrigger> _pendingTriggers = new();
 
     public ObservableCollection<TimerProperties> Timers { get; } = new();
 
     [ObservableProperty] private bool _customConfig;
     [ObservableProperty] private bool _forceScheduledStart;
+
+    /// <summary>
+    /// 补触发窗口（分钟）：错过计划点后，允许在该窗口内补跑一次。
+    /// </summary>
+    [ObservableProperty] private int _catchUpWindowMinutes;
+
+    public decimal CatchUpWindowValue
+    {
+        get => CatchUpWindowMinutes;
+        set => CatchUpWindowMinutes = (int)Math.Clamp(value, 0, 720);
+    }
+
+    partial void OnCatchUpWindowMinutesChanged(int value)
+    {
+        GlobalConfiguration.SetTimerCatchUpWindowMinutes(value);
+        OnPropertyChanged(nameof(CatchUpWindowValue));
+    }
 
     /// <summary>
     /// 实例列表，供 UI ComboBox 绑定（UI 上仍显示为"配置"）
@@ -50,6 +69,7 @@ public partial class TimerModel : ViewModelBase
     {
         CustomConfig = GlobalConfiguration.GetValue(ConfigurationKeys.CustomConfig, bool.FalseString) == bool.TrueString;
         ForceScheduledStart = GlobalConfiguration.GetValue(ConfigurationKeys.ForceScheduledStart, bool.FalseString) == bool.TrueString;
+        _catchUpWindowMinutes = GlobalConfiguration.GetTimerCatchUpWindowMinutes();
 
         var count = GlobalConfiguration.GetTimerCount(8);
         for (var i = 0; i < count; i++)
@@ -159,28 +179,78 @@ public partial class TimerModel : ViewModelBase
         return Timers.Any(t => t.IsOn && t.ScheduleConfig.ShouldTrigger(now));
     }
 
-    private void CheckTimerElapsed(object? sender, EventArgs e)
+    private void CheckTimerElapsed(object? sender, EventArgs e) => CheckSchedules(DateTime.Now);
+
+    private void CheckSchedules(DateTime now)
     {
-        var currentTime = DateTime.Now;
+        CleanupStalePending(now);
+
+        var due = new List<TimerDue>();
         foreach (var timer in Timers)
         {
-            if (!timer.IsOn || !timer.ScheduleConfig.ShouldTrigger(currentTime))
+            if (!timer.IsOn)
                 continue;
 
-            var scheduledTime = currentTime.Date.Add(timer.Time);
+            var plan = timer.ScheduleConfig.GetLatestPlannedTime(timer.Time, now);
+            if (plan == null)
+                continue;
 
-            // 到达定时时间：执行任务
-            if (currentTime.Hour == scheduledTime.Hour && currentTime.Minute == scheduledTime.Minute)
+            CollectDue(timer, plan.Value, now, due);
+        }
+
+        DispatchDue(due, now);
+    }
+
+    /// <summary>
+    /// 判断计划点是否仍需处理：已处理则忽略；超出补触发窗口记为错过；否则进入待派发。
+    /// </summary>
+    private void CollectDue(TimerProperties timer, DateTime plan, DateTime now, List<TimerDue> due)
+    {
+        var planKey = TimerScheduleConfig.ToPlanKey(plan);
+        if (string.Equals(timer.LastPlanKey, planKey, StringComparison.Ordinal))
+            return;
+
+        var age = now - plan;
+        if (age < TimeSpan.Zero)
+            return;
+
+        if (age > TimeSpan.FromMinutes(CatchUpWindowMinutes))
+        {
+            // 跨天的历史计划点（首次启动、长时间停机后）不属于本次错过，也不消耗，避免启动即显示「错过」
+            if (plan.Date != now.Date)
+                return;
+
+            timer.SetOutcome(planKey, TimerOutcomes.Missed, plan, now);
+            LogTimer(timer, plan, now, TimerOutcomes.Missed, $"ageMinutes={(int)age.TotalMinutes}");
+            return;
+        }
+
+        if (age > TimeSpan.FromMinutes(1))
+            LogTimer(timer, plan, now, "CatchUp", $"ageMinutes={(int)age.TotalMinutes}");
+
+        due.Add(new TimerDue(timer, plan, planKey));
+    }
+
+    /// <summary>
+    /// 同一 tick 只允许一个槽位真正启动，其余记为跳过（不排队、不抢占）。
+    /// </summary>
+    private void DispatchDue(List<TimerDue> due, DateTime now)
+    {
+        if (due.Count == 0)
+            return;
+
+        var started = false;
+        foreach (var item in due.OrderBy(d => d.Plan).ThenBy(d => d.Timer.TimerId))
+        {
+            if (started)
             {
-                // 防止同一分钟内重复触发
-                if (timer.LastTriggered.HasValue
-                    && timer.LastTriggered.Value.Date == currentTime.Date
-                    && timer.LastTriggered.Value.Hour == currentTime.Hour
-                    && timer.LastTriggered.Value.Minute == currentTime.Minute)
-                    continue;
-
-                TriggerTimer(timer, currentTime);
+                item.Timer.SetOutcome(item.PlanKey, TimerOutcomes.SkippedSerial, item.Plan, now);
+                LogTimer(item.Timer, item.Plan, now, TimerOutcomes.SkippedSerial, "sameTick");
+                continue;
             }
+
+            if (TryDispatch(item.Timer, item.Plan, item.PlanKey, now))
+                started = true;
         }
     }
 
@@ -198,53 +268,118 @@ public partial class TimerModel : ViewModelBase
 
             var scheduledTime = DateTimeOffset.FromUnixTimeMilliseconds(scheduledAtUnixMilliseconds)
                 .LocalDateTime;
+            if (scheduledTime.Second > 0)
+                scheduledTime = scheduledTime.AddSeconds(-scheduledTime.Second);
             if (scheduledTime.Hour != timer.Time.Hours
                 || scheduledTime.Minute != timer.Time.Minutes
                 || !timer.ScheduleConfig.ShouldTrigger(scheduledTime))
                 return;
 
-            TriggerTimer(timer, scheduledTime);
+            var due = new List<TimerDue>();
+            CollectDue(timer, scheduledTime, DateTime.Now, due);
+            DispatchDue(due, DateTime.Now);
         });
     }
 
-    private void TriggerTimer(TimerProperties timer, DateTime scheduledTime)
-    {
-        if (timer.LastTriggered.HasValue
-            && timer.LastTriggered.Value.Year == scheduledTime.Year
-            && timer.LastTriggered.Value.DayOfYear == scheduledTime.DayOfYear
-            && timer.LastTriggered.Value.Hour == scheduledTime.Hour
-            && timer.LastTriggered.Value.Minute == scheduledTime.Minute)
-            return;
-
-        timer.LastTriggered = scheduledTime;
-        ExecuteTimerTask(timer);
-    }
-
-    /// <summary>
-    /// 执行定时任务：
-    /// - 如果启用了全局启动设置，先启动所有模拟器，再依次执行所有实例任务
-    /// - 否则按原有逻辑执行单个实例
-    /// </summary>
-    private async void ExecuteTimerTask(TimerProperties timer)
+    private bool TryDispatch(TimerProperties timer, DateTime plan, string planKey, DateTime now)
     {
         var manager = MaaProcessorManager.Instance;
+        var targetInstanceId = CustomConfig && !string.IsNullOrEmpty(timer.TimerConfig)
+            ? timer.TimerConfig!
+            : manager.Current.InstanceId;
 
-        // 检查全局启动设置
-        var globalStartEnabled = GlobalConfiguration.GetValue(ConfigurationKeys.GlobalStartEnabled, bool.FalseString) == bool.TrueString;
-        if (globalStartEnabled && timer.TimerAction == TimerActionType.StartTask)
+        var vm = manager.GetViewModel(targetInstanceId);
+        if (vm == null)
         {
-            await StartAllEmulatorsAndRunTasks();
-            return;
+            manager.EnsureInstanceLoaded(targetInstanceId);
+            vm = manager.GetViewModel(targetInstanceId);
         }
 
-        // 原有逻辑
+        if (vm == null)
+        {
+            timer.SetOutcome(planKey, TimerOutcomes.SkippedMissing, plan, now);
+            LogTimer(timer, plan, now, TimerOutcomes.SkippedMissing, $"target={targetInstanceId}");
+            return false;
+        }
+
+        if (timer.TimerAction == TimerActionType.StopTask)
+        {
+            timer.SetOutcome(planKey, TimerOutcomes.Dispatched, plan, now);
+            LogTimer(timer, plan, now, TimerOutcomes.Dispatched, "stop");
+            ExecuteAction(timer, vm);
+            return true;
+        }
+
+        // 手动/其他实例正在运行时让路；ForceScheduledStart 只允许目标实例自身被抢占。
+        if (IsAnyInstanceRunning(ForceScheduledStart ? targetInstanceId : null))
+        {
+            timer.SetOutcome(planKey, TimerOutcomes.SkippedBusy, plan, now);
+            LogTimer(timer, plan, now, TimerOutcomes.SkippedBusy, "deviceBusy");
+            return false;
+        }
+
+        if (!HasExecutableTasks(vm))
+        {
+            timer.SetOutcome(planKey, TimerOutcomes.SkippedEmpty, plan, now);
+            LogTimer(timer, plan, now, TimerOutcomes.SkippedEmpty, $"target={targetInstanceId}");
+            return false;
+        }
+
+        // 先消费计划点，保证重启/多 tick 不重复触发
+        timer.SetOutcome(planKey, TimerOutcomes.Running, plan, now);
+        LogTimer(timer, plan, now, TimerOutcomes.Running, $"target={targetInstanceId}");
+
+        var globalStartEnabled = GlobalConfiguration.GetValue(ConfigurationKeys.GlobalStartEnabled, bool.FalseString) == bool.TrueString;
+        if (globalStartEnabled)
+        {
+            timer.SetOutcome(planKey, TimerOutcomes.Dispatched, plan, now);
+            _ = StartAllEmulatorsAndRunTasks();
+            return true;
+        }
+
         if (CustomConfig && !string.IsNullOrEmpty(timer.TimerConfig))
         {
-            var targetInstanceId = timer.TimerConfig;
-            manager.EnsureInstanceLoaded(targetInstanceId);
-            var vm = manager.GetViewModel(targetInstanceId);
-            if (vm == null) return;
+            _ = SwitchAndRunAsync(timer, targetInstanceId, vm, planKey, plan);
+        }
+        else
+        {
+            BeginPending(timer, vm.Processor, planKey, plan);
+            ExecuteAction(timer, vm);
+        }
 
+        return true;
+    }
+
+    private static bool IsAnyInstanceRunning(string? allowedInstanceId)
+    {
+        var manager = MaaProcessorManager.Instance;
+        foreach (var (id, _) in manager.GetAllInstanceIdsAndNames())
+        {
+            if (allowedInstanceId != null && id == allowedInstanceId)
+                continue;
+
+            var vm = manager.GetViewModel(id);
+            if (vm == null)
+                continue;
+
+            if (vm.IsRunning || vm.Processor.IsTaskRunActive || vm.Processor.TaskQueue.Count > 0)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool HasExecutableTasks(TaskQueueViewModel vm)
+    {
+        return vm.TaskItemViewModels.Any(task =>
+            !task.IsResourceOptionItem && (task.IsChecked || task.IsCheckedWithNull == null));
+    }
+
+    private async Task SwitchAndRunAsync(TimerProperties timer, string targetInstanceId,
+        TaskQueueViewModel vm, string planKey, DateTime plan)
+    {
+        try
+        {
             await DispatcherHelper.RunOnMainThreadAsync(() =>
             {
                 Instances.InstanceTabBarViewModel.SwitchToInstanceById(targetInstanceId);
@@ -252,17 +387,87 @@ public partial class TimerModel : ViewModelBase
 
             await Task.Delay(5000);
 
+            BeginPending(timer, vm.Processor, planKey, plan);
             DispatcherHelper.RunOnMainThread(() => ExecuteAction(timer, vm));
         }
-        else
+        catch (Exception ex)
         {
-            var vm = manager.GetViewModel(manager.Current.InstanceId);
-            if (vm == null) return;
-
-            DispatcherHelper.RunOnMainThread(() => ExecuteAction(timer, vm));
+            timer.SetOutcome(planKey, TimerOutcomes.Failed, plan, DateTime.Now);
+            LoggerHelper.Error($"[定时] slot={timer.TimerId + 1} 切换实例失败：{ex.Message}", ex);
         }
     }
 
+    private void BeginPending(TimerProperties timer, MaaProcessor processor, string planKey, DateTime plan)
+    {
+        EndPending(timer.TimerId);
+
+        var handler = new EventHandler<TaskRunFinishedEventArgs>((_, args) =>
+            OnTaskRunFinished(timer.TimerId, planKey, args));
+        var pending = new PendingTimerTrigger
+        {
+            TimerId = timer.TimerId,
+            PlanKey = planKey,
+            PlanTime = plan,
+            Processor = processor,
+            Handler = handler,
+            DispatchedAt = DateTime.Now
+        };
+
+        _pendingTriggers[timer.TimerId] = pending;
+        processor.TaskRunFinished += handler;
+    }
+
+    private void OnTaskRunFinished(int timerId, string planKey, TaskRunFinishedEventArgs args)
+    {
+        if (!_pendingTriggers.TryGetValue(timerId, out var pending)
+            || !string.Equals(pending.PlanKey, planKey, StringComparison.Ordinal))
+            return;
+
+        EndPending(timerId);
+
+        var timer = Timers.FirstOrDefault(candidate => candidate.TimerId == timerId);
+        if (timer == null)
+            return;
+
+        var outcome = args.Status switch
+        {
+            MFATask.MFATaskStatus.SUCCEEDED => TimerOutcomes.Success,
+            MFATask.MFATaskStatus.STOPPED => TimerOutcomes.Stopped,
+            _ => TimerOutcomes.Failed
+        };
+        timer.SetOutcome(planKey, outcome, pending.PlanTime, DateTime.Now);
+        LogTimer(timer, pending.PlanTime, DateTime.Now, outcome, "finished");
+    }
+
+    private void EndPending(int timerId)
+    {
+        if (_pendingTriggers.Remove(timerId, out var pending))
+            pending.Processor.TaskRunFinished -= pending.Handler;
+    }
+
+    private void CleanupStalePending(DateTime now)
+    {
+        foreach (var pending in _pendingTriggers.Values.ToList())
+        {
+            if (pending.Processor.IsTaskRunActive || now - pending.DispatchedAt < TimeSpan.FromHours(6))
+                continue;
+
+            var timer = Timers.FirstOrDefault(candidate => candidate.TimerId == pending.TimerId);
+            EndPending(pending.TimerId);
+            timer?.SetOutcome(pending.PlanKey, TimerOutcomes.Failed, pending.PlanTime, now);
+            LoggerHelper.Error($"[定时] slot={pending.TimerId + 1} 结果回调超时，记为失败。");
+        }
+    }
+
+    private static void LogTimer(TimerProperties timer, DateTime plan, DateTime now, string outcome, string reason)
+    {
+        LoggerHelper.Info($"[定时] slot={timer.TimerId + 1} plan={plan:yyyy-MM-dd HH:mm} now={now:yyyy-MM-dd HH:mm:ss} outcome={outcome} reason={reason}");
+    }
+
+    /// <summary>
+    /// 执行全局启动（若启用）：
+    /// 一次拉起全部模拟器并依次执行所有实例任务。
+    /// </summary>
     private static async Task StartAllEmulatorsAndRunTasks()
     {
         await GlobalStartManager.StartAllAndRunTasks();
@@ -302,6 +507,35 @@ public partial class TimerModel : ViewModelBase
     }
 
     /// <summary>
+    /// 定时触发结果/跳过原因
+    /// </summary>
+    public static class TimerOutcomes
+    {
+        public const string Running = "Running";
+        public const string Success = "Success";
+        public const string Failed = "Failed";
+        public const string Stopped = "Stopped";
+        public const string Missed = "Missed";
+        public const string SkippedBusy = "SkippedBusy";
+        public const string SkippedEmpty = "SkippedEmpty";
+        public const string SkippedMissing = "SkippedMissing";
+        public const string SkippedSerial = "SkippedSerial";
+        public const string Dispatched = "Dispatched";
+    }
+
+    private readonly record struct TimerDue(TimerProperties Timer, DateTime Plan, string PlanKey);
+
+    private sealed class PendingTimerTrigger
+    {
+        public int TimerId { get; init; }
+        public string PlanKey { get; init; } = string.Empty;
+        public DateTime PlanTime { get; init; }
+        public MaaProcessor Processor { get; init; } = null!;
+        public EventHandler<TaskRunFinishedEventArgs> Handler { get; init; } = null!;
+        public DateTime DispatchedAt { get; init; }
+    }
+
+    /// <summary>
     /// 实例条目，用于 UI ComboBox 绑定
     /// </summary>
     public partial class InstanceEntry : ObservableObject
@@ -337,6 +571,7 @@ public partial class TimerModel : ViewModelBase
             _stopMFA = GlobalConfiguration.GetTimerStopMFA(timeId, bool.FalseString) == bool.TrueString;
 
             _scheduleConfig = new TimerScheduleConfig(GlobalConfiguration.GetTimerSchedule(timeId, string.Empty));
+            LoadLastResult();
 
             TimerName = $"{LangKeys.Timer.ToLocalization()} {TimerId + 1}";
             LanguageHelper.LanguageChanged += OnLanguageChanged;
@@ -344,16 +579,76 @@ public partial class TimerModel : ViewModelBase
 
         public int TimerId { get; set; }
 
+        private string _lastPlanKey = string.Empty;
         /// <summary>
-        /// 上次触发时间，防止同一分钟内重复执行
+        /// 最近一次已处理的计划点（yyyyMMddHHmm），用于幂等去重。
         /// </summary>
-        public DateTime? LastTriggered { get; set; }
+        public string LastPlanKey => _lastPlanKey;
+
+        private string _lastOutcome = string.Empty;
+        public string LastOutcome => _lastOutcome;
+
+        private DateTime? _lastResultAt;
+        public DateTime? LastResultAt => _lastResultAt;
+
+        public string LastRunText => _lastResultAt.HasValue
+            ? _lastResultAt.Value.ToString("MM-dd HH:mm")
+            : LangKeys.ScheduleNeverRun.ToLocalization();
+
+        public string LastResultText => _lastOutcome switch
+        {
+            TimerOutcomes.Running => LangKeys.ScheduleRunning.ToLocalization(),
+            TimerOutcomes.Success => LangKeys.TaskCompleted.ToLocalization(),
+            TimerOutcomes.Failed => LangKeys.TaskFailed.ToLocalization(),
+            TimerOutcomes.Stopped => LangKeys.TaskStopped.ToLocalization(),
+            TimerOutcomes.Missed => LangKeys.ScheduleSkippedMissed.ToLocalization(),
+            TimerOutcomes.SkippedBusy => LangKeys.ScheduleSkippedBusy.ToLocalization(),
+            TimerOutcomes.SkippedEmpty => LangKeys.ScheduleSkippedEmpty.ToLocalization(),
+            TimerOutcomes.SkippedMissing => LangKeys.ScheduleSkippedMissing.ToLocalization(),
+            TimerOutcomes.SkippedSerial => LangKeys.ScheduleSkippedSerial.ToLocalization(),
+            TimerOutcomes.Dispatched => LangKeys.ScheduleDispatched.ToLocalization(),
+            _ => string.Empty
+        };
+
+        private void LoadLastResult()
+        {
+            _lastPlanKey = GlobalConfiguration.GetTimerLastPlan(TimerId, string.Empty);
+            var raw = GlobalConfiguration.GetTimerLastResult(TimerId, string.Empty);
+            var parts = raw.Split('|');
+            if (parts.Length >= 2 && DateTime.TryParse(parts[1], out var at))
+            {
+                _lastOutcome = parts[0];
+                _lastResultAt = at;
+            }
+        }
+
+        /// <summary>
+        /// 记录一次计划点的处理结果，并立刻持久化（保证重启后不重复触发）。
+        /// </summary>
+        public void SetOutcome(string planKey, string outcome, DateTime planTime, DateTime at)
+        {
+            _lastPlanKey = planKey;
+            _lastOutcome = outcome;
+            _lastResultAt = at;
+
+            GlobalConfiguration.SetTimerLastPlan(TimerId, planKey);
+            GlobalConfiguration.SetTimerLastResult(TimerId,
+                $"{outcome}|{at:yyyy-MM-dd HH:mm:ss}|{planTime:yyyyMMddHHmm}");
+
+            OnPropertyChanged(nameof(LastPlanKey));
+            OnPropertyChanged(nameof(LastOutcome));
+            OnPropertyChanged(nameof(LastResultAt));
+            OnPropertyChanged(nameof(LastRunText));
+            OnPropertyChanged(nameof(LastResultText));
+        }
 
         [ObservableProperty] private string _timerName;
 
         private void OnLanguageChanged(object sender, EventArgs e)
         {
             TimerName = $"{LangKeys.Timer.ToLocalization()} {TimerId + 1}";
+            OnPropertyChanged(nameof(LastRunText));
+            OnPropertyChanged(nameof(LastResultText));
         }
 
         private bool _isOn;
@@ -471,6 +766,10 @@ public partial class TimerModel : ViewModelBase
             GlobalConfiguration.SetTimerSchedule(TimerId, _scheduleConfig?.Serialize() ?? string.Empty);
             GlobalConfiguration.SetTimerStopConnectedProcess(TimerId, _stopConnectedProcess.ToString());
             GlobalConfiguration.SetTimerStopMFA(TimerId, _stopMFA.ToString());
+            GlobalConfiguration.SetTimerLastPlan(TimerId, _lastPlanKey);
+            if (_lastResultAt.HasValue)
+                GlobalConfiguration.SetTimerLastResult(TimerId,
+                    $"{_lastOutcome}|{_lastResultAt.Value:yyyy-MM-dd HH:mm:ss}|{_lastPlanKey}");
         }
     }
 }

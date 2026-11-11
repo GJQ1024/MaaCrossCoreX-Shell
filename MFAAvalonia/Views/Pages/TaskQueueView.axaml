@@ -1262,12 +1262,19 @@
                                               Grid.Column="0"
                                               MinWidth="0"
                                               Margin="0,0,8,0"
+                                              x:CompileBindings="False"
                                               extensions:CheckBoxExtensions.EnableRightClickNull="{Binding !IsResourceOptionItem}"
                                               HorizontalAlignment="Center"
                                               VerticalAlignment="Center"
                                               extensions:CheckBoxExtensions.LimitDragDrop="True"
-                                              IsEnabled="{Binding !IsResourceOptionItem}"
-                                              IsChecked="{Binding IsCheckedWithNull}" />
+                                              IsChecked="{Binding IsCheckedWithNull}">
+                                        <CheckBox.IsEnabled>
+                                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                <Binding Converter="{x:Static BoolConverters.Not}" Path="IsResourceOptionItem" />
+                                                <Binding Path="DataContext.Idle" RelativeSource="{RelativeSource AncestorType=ListBox}" />
+                                            </MultiBinding>
+                                        </CheckBox.IsEnabled>
+                                    </CheckBox>
                                     <Grid Grid.Column="1"
                                           ColumnDefinitions="Auto,*"
                                           Background="Transparent"

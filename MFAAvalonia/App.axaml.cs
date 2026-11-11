@@ -230,6 +230,9 @@ public partial class App : Application
                 {
                     TelemetryService.InitializeFromInterface();
 
+                    // 定时调度与设置页解耦：即使从未打开定时页，也要启动分钟级检查
+                    _ = MFAAvalonia.ViewModels.Other.TimerModel.Instance;
+
                     // 启动懒加载：先加载 ActiveTab，再加载有定时任务的，最后加载其余
                     _ = MaaProcessorManager.Instance.StartLazyLoadingAsync();
                 }
@@ -403,6 +406,7 @@ public partial class App : Application
             .AddView<MonitorView, MonitorViewModel>(services)
             .AddView<ResourcesView, ResourcesViewModel>(services)
             .AddView<SettingsView, SettingsViewModel>(services)
+            .AddOnlyView<ScheduleView, TimerSettingsUserControlModel>(services)
             .AddView<ScreenshotView, ScreenshotViewModel>(services)
 
             // Add additional views

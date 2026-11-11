@@ -222,6 +222,37 @@ public static class GlobalConfiguration
         SetValue($"Timer.Timer{i + 1}.StopMFA", value);
     }
 
+    public static string GetTimerLastPlan(int i, string defaultValue)
+    {
+        return GetValue($"Timer.Timer{i + 1}.LastPlan", defaultValue);
+    }
+
+    public static void SetTimerLastPlan(int i, string value)
+    {
+        SetValue($"Timer.Timer{i + 1}.LastPlan", value);
+    }
+
+    public static string GetTimerLastResult(int i, string defaultValue)
+    {
+        return GetValue($"Timer.Timer{i + 1}.LastResult", defaultValue);
+    }
+
+    public static void SetTimerLastResult(int i, string value)
+    {
+        SetValue($"Timer.Timer{i + 1}.LastResult", value);
+    }
+
+    public static int GetTimerCatchUpWindowMinutes(int defaultValue = 30)
+    {
+        var val = GetValue(ConfigurationKeys.TimerCatchUpWindowMinutes, defaultValue.ToString());
+        return int.TryParse(val, out var minutes) ? Math.Clamp(minutes, 0, 720) : defaultValue;
+    }
+
+    public static void SetTimerCatchUpWindowMinutes(int value)
+    {
+        SetValue(ConfigurationKeys.TimerCatchUpWindowMinutes, Math.Clamp(value, 0, 720).ToString());
+    }
+
     public static void RemoveTimerConfig(int i)
     {
         // 清除指定定时器的所有配置项
@@ -232,5 +263,7 @@ public static class GlobalConfiguration
         SetValue($"Timer.Timer{i + 1}.Action", string.Empty);
         SetValue($"Timer.Timer{i + 1}.StopConnectedProcess", string.Empty);
         SetValue($"Timer.Timer{i + 1}.StopMFA", string.Empty);
+        SetValue($"Timer.Timer{i + 1}.LastPlan", string.Empty);
+        SetValue($"Timer.Timer{i + 1}.LastResult", string.Empty);
     }
 }

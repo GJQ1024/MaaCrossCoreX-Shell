@@ -20,35 +20,6 @@
     <Design.DataContext>
         <settings:TimerSettingsUserControlModel />
     </Design.DataContext>
-    <UserControl.Styles>
-        <Style Selector="Button.AddTimerButton">
-            <Setter Property="MinWidth" Value="44" />
-            <Setter Property="MinHeight" Value="44" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="RenderTransformOrigin" Value="50%,50%" />
-            <Setter Property="RenderTransform">
-                <ScaleTransform ScaleX="1" ScaleY="1" />
-            </Setter>
-        </Style>
-        <Style Selector="Button.AddTimerButton:pointerover">
-            <Setter Property="Background" Value="{DynamicResource SukiPrimaryColor15}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource SukiPrimaryColor25}" />
-            <Setter Property="Foreground" Value="{DynamicResource SukiPrimaryColor75}" />
-            <Setter Property="RenderTransform">
-                <ScaleTransform ScaleX="1.12" ScaleY="1.12" />
-            </Setter>
-        </Style>
-        <Style Selector="Button.AddTimerButton:pressed">
-            <Setter Property="Background" Value="{DynamicResource SukiPrimaryColor25}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource SukiPrimaryColor75}" />
-            <Setter Property="RenderTransform">
-                <ScaleTransform ScaleX="1.05" ScaleY="1.05" />
-            </Setter>
-        </Style>
-    </UserControl.Styles>
     <StackPanel Spacing="8">
         <TextBlock
             FontWeight="SemiBold"
@@ -112,13 +83,6 @@
                                         Classes="Switch"
                                         IsChecked="{Binding IsOn}"
                                         VerticalAlignment="Top" />
-                                    <Button
-                                        Command="{Binding RemoveCommand}"
-                                        Content="✕"
-                                        FontSize="12"
-                                        Padding="6,2"
-                                        ToolTip.Tip="{markup:I18n {x:Static helper:LangKeys.RemoveTimer}}"
-                                        VerticalAlignment="Center" />
                                 </StackPanel>
                                 <StackPanel HorizontalAlignment="Left" VerticalAlignment="Center">
                                     <TextBlock
@@ -198,14 +162,13 @@
                                             VerticalAlignment="Center" />
                                     </DockPanel>
                                 </StackPanel>
-                                <DockPanel x:CompileBindings="False"
-                                           IsVisible="{Binding CustomConfig, Source={x:Static other:TimerModel.Instance}}">
+                                <DockPanel x:CompileBindings="False">
                                     <ComboBox extensions:ComboBoxExtensions.DisableNavigationOnLostFocus="True"
                                               DisplayMemberBinding="{Binding Name}"
                                               DockPanel.Dock="Right"
                                               Focusable="False"
                                               HorizontalAlignment="Center"
-                                              IsEnabled="{Binding Idle, Source={x:Static helper:Instances.RootViewModel}}"
+                                              IsEnabled="{Binding CustomConfig, Source={x:Static other:TimerModel.Instance}}"
                                               ItemsSource="{Binding InstanceList, Source={x:Static other:TimerModel.Instance}}"
                                               SelectedValue="{Binding TimerConfig}"
                                               SelectedValueBinding="{Binding InstanceId}"
@@ -220,22 +183,21 @@
                                     </StackPanel>
                                 </DockPanel>
                             </StackPanel>
+                            <StackPanel Margin="0,2,0,0" Orientation="Horizontal" Spacing="10">
+                                <TextBlock
+                                    FontSize="13"
+                                    Foreground="{DynamicResource SukiLowText}"
+                                    Text="{markup:I18n {x:Static helper:LangKeys.ScheduleLastRun}}" />
+                                <TextBlock FontSize="13" Text="{Binding LastRunText}" />
+                                <TextBlock
+                                    FontSize="13"
+                                    Foreground="{DynamicResource SukiPrimaryColor}"
+                                    Text="{Binding LastResultText}" />
+                            </StackPanel>
                         </StackPanel>
                     </suki:GlassCard>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
-
-        <Button
-            Classes="Basic Round AddTimerButton"
-            Command="{Binding TimerModels.AddTimerCommand}"
-            Content="+"
-            FontSize="28"
-            FontWeight="Bold"
-            Foreground="{DynamicResource SukiPrimaryColor}"
-            HorizontalAlignment="Center"
-            Margin="0,4,0,14"
-            ToolTip.Tip="{markup:I18n {x:Static helper:LangKeys.AddTimer}}">
-        </Button>
     </StackPanel>
 </UserControl>
