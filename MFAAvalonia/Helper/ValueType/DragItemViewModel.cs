@@ -407,6 +407,75 @@ public partial class DragItemViewModel : ObservableObject
         }
     }
 
+    private JobScheduleEntry? ScheduleEntry
+    {
+        get
+        {
+            var instanceId = OwnerViewModel?.Processor.InstanceId;
+            var entry = InterfaceItem?.Entry;
+            if (string.IsNullOrEmpty(instanceId) || string.IsNullOrEmpty(entry))
+                return null;
+            return JobScheduleStore.Find(instanceId, InterfaceItem?.Name ?? Name, entry);
+        }
+    }
+
+    [JsonIgnore]
+    public bool CanSchedule => !IsResourceOptionItem
+                               && !string.IsNullOrWhiteSpace(InterfaceItem?.Entry)
+                               && OwnerViewModel != null;
+
+    /// <summary>任务级定时开关：开启后由 JobScheduler 按 NextRunAt 单条派发。</summary>
+    [JsonIgnore]
+    public bool IsScheduleEnabled
+    {
+        get => ScheduleEntry?.Enabled == true;
+        set
+        {
+            if (!CanSchedule)
+                return;
+
+            var instanceId = OwnerViewModel!.Processor.InstanceId;
+            JobScheduleStore.SetEnabled(instanceId, InterfaceItem!.Name ?? Name, InterfaceItem.Entry!, value);
+            RefreshSchedule();
+        }
+    }
+
+    [JsonIgnore]
+    public bool IsScheduleInfoVisible => IsScheduleEnabled && !string.IsNullOrEmpty(ScheduleText);
+
+    [JsonIgnore]
+    public string ScheduleText
+    {
+        get
+        {
+            if (ScheduleEntry is not { Enabled: true } entry)
+                return string.Empty;
+
+            var next = entry.NextRunAt?.ToString("MM-dd HH:mm") ?? "待排期";
+            var last = string.IsNullOrEmpty(entry.LastResult) ? "无" : DescribeScheduleResult(entry.LastResult);
+            var lastAt = entry.LastRunAt?.ToString("MM-dd HH:mm");
+            return $"下次 {next} · 上次 {last}{(lastAt == null ? string.Empty : $" {lastAt}")}";
+        }
+    }
+
+    public void RefreshSchedule()
+    {
+        OnPropertyChanged(nameof(IsScheduleEnabled));
+        OnPropertyChanged(nameof(ScheduleText));
+        OnPropertyChanged(nameof(IsScheduleInfoVisible));
+    }
+
+    private static string DescribeScheduleResult(string result) => result switch
+    {
+        "success" => "成功",
+        "failed" => "失败",
+        "stopped" => "中断",
+        "running" => "运行中",
+        "interrupted" => "中断",
+        "skipped_missing" => "任务缺失",
+        _ => result
+    };
+
     private void OnLanguageChanged(object sender, EventArgs e)
     {
         UpdateContent();

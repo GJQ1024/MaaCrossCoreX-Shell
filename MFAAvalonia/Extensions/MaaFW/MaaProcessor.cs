@@ -59,6 +59,10 @@ public class MaaProcessor
     private static readonly Random Random = new();
     private int _taskQueueTotal;
     private int _isTaskRunActive;
+    private readonly QueueFrameRecorder _frameRecorder;
+
+    /// <summary>操作期帧记录器：仅在任务队列运行期间按秒落帧，空闲时不工作。</summary>
+    internal QueueFrameRecorder FrameRecorder => _frameRecorder;
     private MFATask.MFATaskStatus _lastRunStatus = MFATask.MFATaskStatus.NOT_STARTED;
 
     /// <summary>
@@ -88,6 +92,8 @@ public class MaaProcessor
     //
     // public Dictionary<string, MaaNode> NodeDictionary = new();
     public ObservableQueue<MFATask> TaskQueue { get; } = new();
+    /// <summary>本轮实际执行的条目（含手动运行），用于结束后按任务回写 NextRun。</summary>
+    public IReadOnlyList<DragItemViewModel> LastRunItems { get; private set; } = Array.Empty<DragItemViewModel>();
     public bool IsV3 = false;
 
     private const int MaxLogCount = 150;
@@ -496,6 +502,7 @@ public class MaaProcessor
     {
         InstanceId = instanceId;
         InstanceConfiguration = new InstanceConfiguration(instanceId);
+        _frameRecorder = new QueueFrameRecorder(this);
         DispatcherHelper.RunOnMainThread(() => Processors.Add(this));
 
         TaskQueue.CountChanged += (_, args) =>
@@ -541,6 +548,7 @@ public class MaaProcessor
     public void Dispose()
     {
         _isClosed = true;
+        _frameRecorder.Dispose();
         DetachScreenshotTasker(requireStopped: true);
         _detachedScreenshotCleanupCancellationTokenSource?.Cancel();
         _detachedScreenshotCleanupCancellationTokenSource?.Dispose();
@@ -1021,6 +1029,107 @@ public class MaaProcessor
             return ViewModel?.CurrentController == MaaControllerTypes.Adb
                 && snapshot == AdbControllerSnapshot.Capture(Config.AdbDevice);
         return true;
+    }
+
+    // 目标设备身份：运行时通过环境变量 MFA_TARGET_ANDROID_ID 提供，不入库。
+    // 未提供时不做指纹过滤；多台装了游戏的设备按歧义规则停止。
+    // 身份只由 android_id 认定，端口 / 序列号只是连接地址（会因实例重建而变化）。
+    private static string TargetAndroidId =>
+        Environment.GetEnvironmentVariable("MFA_TARGET_ANDROID_ID")?.Trim() ?? string.Empty;
+
+    private (bool Ok, string Message) CheckDeviceIdentity()
+    {
+        if (ViewModel?.CurrentController != MaaControllerTypes.Adb)
+            return (true, string.Empty);
+
+        var expected = TargetAndroidId;
+        if (expected.Length == 0)
+            return (true, string.Empty);
+
+        var serial = Config.AdbDevice?.AdbSerial ?? string.Empty;
+        var adbPath = ResolveAdbPath(Config.AdbDevice?.AdbPath,
+            InstanceConfiguration.GetValue(ConfigurationKeys.SoftwarePath, string.Empty));
+        var (success, output) = RunAdb(adbPath, serial, "shell settings get secure android_id");
+        var actual = output.Trim();
+
+        if (!success || actual.Length == 0)
+        {
+            return (false,
+                $"设备身份校验失败：无法读取 android_id（serial={serial}，adb={adbPath}，输出={actual}）。已拒绝执行任务。");
+        }
+
+        if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
+        {
+            return (false,
+                $"设备身份校验失败：当前连接 serial={serial} 的 android_id={actual}，与目标 {expected} 不一致。已拒绝执行任务，请改用目标设备，或清除 MFA_TARGET_ANDROID_ID。");
+        }
+
+        LoggerHelper.Info($"设备身份校验通过：serial={serial}, android_id={actual}");
+        return (true, string.Empty);
+    }
+
+    private static string ResolveAdbPath(string? configured, string? softwarePath)
+    {
+        if (!string.IsNullOrWhiteSpace(configured) && File.Exists(configured))
+            return configured;
+
+        // SoftwarePath 指向 <MuMu 安装目录>\nx_main\MuMuManager.exe（旧版为 \shell\MuMuManager.exe）
+        if (!string.IsNullOrWhiteSpace(softwarePath) && File.Exists(softwarePath))
+        {
+            var installRoot = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(softwarePath)!, ".."));
+            foreach (var candidate in new[]
+                     {
+                         Path.Combine(installRoot, "nx_device", "12.0", "shell", "adb.exe"),
+                         Path.Combine(installRoot, "shell", "adb.exe"),
+                         Path.Combine(installRoot, "adb.exe"),
+                     })
+            {
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+        }
+
+        return "adb";
+    }
+
+    private static (bool Success, string Output) RunAdb(string adbPath, string serial, string arguments)
+    {
+        try
+        {
+            var startInfo = new ProcessStartInfo(adbPath)
+            {
+                Arguments = $"-s {serial} {arguments}",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+            using var process = Process.Start(startInfo);
+            if (process == null)
+                return (false, "adb 进程启动失败");
+
+            var stdout = process.StandardOutput.ReadToEnd();
+            var stderr = process.StandardError.ReadToEnd();
+            if (!process.WaitForExit(8000))
+            {
+                try
+                {
+                    process.Kill(true);
+                }
+                catch
+                {
+                    // 忽略清理异常
+                }
+
+                return (false, "adb 执行超时");
+            }
+
+            return (process.ExitCode == 0, string.IsNullOrWhiteSpace(stdout) ? stderr : stdout);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
     }
 
     public string DescribeAdbConnectionTarget()
@@ -2007,6 +2116,18 @@ public class MaaProcessor
                 LoggerHelper.Warning($"控制器 LinkStart 失败：状态={linkStatus}");
                 tasker.Dispose();
                 TelemetryService.RecordTaskFailure(InstanceId, "controller_link_start_failed", "controller", linkStatus.ToString());
+                return (null, InvalidResource, ShouldRetry);
+            }
+
+            var deviceIdentity = CheckDeviceIdentity();
+            if (!deviceIdentity.Ok)
+            {
+                LoggerHelper.Error(deviceIdentity.Message);
+                AddLog(deviceIdentity.Message, Brushes.OrangeRed, changeColor: false);
+                ToastHelper.Error(deviceIdentity.Message);
+                tasker.Dispose();
+                ShouldRetry = false;
+                TelemetryService.RecordTaskFailure(InstanceId, "device_identity_mismatch", "controller", deviceIdentity.Message);
                 return (null, InvalidResource, ShouldRetry);
             }
 
@@ -3636,12 +3757,13 @@ public class MaaProcessor
                 tasks = FilterExecutableTasks(dragItemViewModels, ignoreCheckedState);
             }
 
+            LastRunItems = tasks;
             _ = RunTaskChainAsync(tasks, onlyStart, checkUpdate, retainCompletedStates, retainedCompletedTasks);
             return Task.CompletedTask;
         }
 
         _lastRunStatus = MFATask.MFATaskStatus.FAILED;
-        EndTaskRun();
+        EndTaskRun(onlyStart);
         return Task.CompletedTask;
     }
 
@@ -3651,6 +3773,7 @@ public class MaaProcessor
             return false;
 
         _lastRunStatus = MFATask.MFATaskStatus.NOT_STARTED;
+        _frameRecorder.Begin();
         DispatcherHelper.PostOnMainThread(() =>
         {
             if (ViewModel != null)
@@ -3659,13 +3782,28 @@ public class MaaProcessor
         return true;
     }
 
-    private void EndTaskRun()
+    private static string MapFrameResult(MFATask.MFATaskStatus status) => status switch
+    {
+        MFATask.MFATaskStatus.SUCCEEDED => "success",
+        MFATask.MFATaskStatus.FAILED => "failed",
+        MFATask.MFATaskStatus.STOPPED => "stopped",
+        _ => "aborted"
+    };
+
+    private void EndTaskRun(bool onlyStart = false)
     {
         Interlocked.Exchange(ref _isTaskRunActive, 0);
+        _frameRecorder.End(MapFrameResult(_lastRunStatus));
         DispatcherHelper.PostOnMainThread(() =>
         {
             if (ViewModel != null)
                 ViewModel.IsRunning = TaskQueue.Count > 0;
+            // 手动运行结束也要回写 NextRun，避免刚手跑完又被定时器补跑一遍。
+            // 调度轮由 JobScheduler.FinishRound 回写，这里会在其 Pending 存在时自动跳过。
+            // onlyStart（开机只启动游戏、不启动脚本）没有任何任务真正执行，
+            // 不能把已勾选任务当成跑过、用 now+静态间隔覆盖真实到点时间。
+            if (!onlyStart)
+                JobScheduler.OnRunFinished(InstanceId, LastRunItems, _lastRunStatus, DateTime.Now);
             TaskRunFinished?.Invoke(this, new TaskRunFinishedEventArgs(_lastRunStatus));
         });
     }
@@ -3691,7 +3829,7 @@ public class MaaProcessor
         }
         finally
         {
-            EndTaskRun();
+            EndTaskRun(onlyStart);
         }
     }
 
@@ -4184,6 +4322,10 @@ public class MaaProcessor
 
         // 4. 合并任务自身的 option（task.option，最高优先级）
         UpdateTaskDictionary(ref taskModels, task.InterfaceItem?.Option, task.InterfaceItem?.Advanced);
+
+        // 5. 仅对 action.param.custom_action_param 做字典级合并：option 出现的 key 覆盖，其余保留。
+        //    其它字段保持原有替换语义。
+        taskModels.MergeCustomActionParams();
 
         var taskParams = SerializeTaskParams(taskModels);
         // var settings = new JsonSerializerSettings

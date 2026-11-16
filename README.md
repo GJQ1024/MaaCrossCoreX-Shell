@@ -2,20 +2,20 @@
 <div align="center">
   <img alt="MFAAvalonia" src="./docs/images/mfa-logo_512x512.png" width="192" height="192" />
 
-# MFAAvalonia
+# MFAAvalonia（MaaCrossCoreX 修改版）
 
-MaaFramework 的跨平台通用桌面界面
+MaaFramework 的跨平台通用桌面界面 —— MaaCrossCoreX 使用的桌面壳
 
-[![License](https://img.shields.io/github/license/MaaXYZ/MFAAvalonia?style=flat-square&color=4a90d9)](./LICENSE)
+[![License](https://img.shields.io/badge/License-GPL--3.0-4a90d9?style=flat-square)](./LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-blueviolet?style=flat-square)](https://github.com/MaaXYZ/MFAAvalonia)
-[![Commit Activity](https://img.shields.io/github/commit-activity/m/MaaXYZ/MFAAvalonia?style=flat-square&color=00d4aa)](https://github.com/MaaXYZ/MFAAvalonia/commits)
-[![Stars](https://img.shields.io/github/stars/MaaXYZ/MFAAvalonia?style=flat-square&color=ffca28)](https://github.com/MaaXYZ/MFAAvalonia/stargazers)
-[![Mirror酱](https://img.shields.io/badge/Mirror%E9%85%B1-%239af3f6?style=flat-square&logo=countingworkspro&logoColor=4f46e5)](https://mirrorchyan.com/zh/projects?rid=MFAAvalonia&source=mfaagh-badge)
+[![Platform](https://img.shields.io/badge/Platform-Windows-blueviolet?style=flat-square)](https://github.com/GJQ1024/MaaCrossCoreX-Shell)
 
 [English](./README_en.md) | **简体中文**
 
 </div>
+
+> 本仓是 [MaaCrossCoreX](https://github.com/GJQ1024/MaaCrossCoreX) 的桌面壳源码（修改版），**不是上游官方仓库**。
+> 上游为 [SweetSmellFox/MFAAvalonia](https://github.com/SweetSmellFox/MFAAvalonia)（GPL-3.0），本仓在其基础上打了任务队列分组、定时调度、统计页、参数深合并等补丁，完整历史已保留。
 
 ## 项目简介
 
@@ -78,7 +78,7 @@ MFAAvalonia 面向资源发布后的配置与运行。开发和排查 Pipeline �
 
 ### 手动集成
 
-1. 从 [Releases](https://github.com/MaaXYZ/MFAAvalonia/releases) 下载与目标系统及架构匹配的版本并解压。
+1. 从 [Releases](https://github.com/GJQ1024/MaaCrossCoreX-Shell/releases) 下载与目标系统及架构匹配的版本并解压。
 2. 按 Project Interface V2 的目录约定放置 `interface.json`、资源文件和所需组件。
 3. 安装 .NET 10 Runtime，然后启动对应平台的 MFAAvalonia 可执行文件。
 
@@ -238,16 +238,4 @@ dotnet publish MFAAvalonia.Desktop/MFAAvalonia.Desktop.csproj -c Release -r win-
 
 MFAAvalonia 使用了 [MaaFramework](https://github.com/MaaXYZ/MaaFramework)、[MaaFramework.Binding.CSharp](https://github.com/MaaXYZ/MaaFramework.Binding.CSharp)、[Avalonia](https://github.com/AvaloniaUI/Avalonia)、[SukiUI](https://github.com/kikipoulet/SukiUI)、[Serilog](https://github.com/serilog/serilog)、[Newtonsoft.Json](https://github.com/JamesNK/Newtonsoft.Json)、[Mirror酱](https://github.com/MirrorChyan/docs) 等开源项目与服务。
 
-感谢所有为 MFAAvalonia 做出贡献的开发者。
-
-<a href="https://github.com/MaaXYZ/MFAAvalonia/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=MaaXYZ/MFAAvalonia&max=1000" alt="Contributors" />
-</a>
-
-<div align="center">
-
-**如果这个项目对你有帮助，请给我们一个 ⭐ Star！**
-
-[![Star History Chart](https://star-history.dera.page/svg?repos=MaaXYZ/MFAAvalonia&type=Date)](https://star-history.dera.page/#MaaXYZ/MFAAvalonia&Date)
-
-</div>
+感谢所有为 MFAAvalonia 做出贡献的开发者，以及上游 [SweetSmellFox/MFAAvalonia](https://github.com/SweetSmellFox/MFAAvalonia) 的持续维护。

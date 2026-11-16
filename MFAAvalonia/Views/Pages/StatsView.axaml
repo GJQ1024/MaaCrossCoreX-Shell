@@ -1,0 +1,148 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:pages="clr-namespace:MFAAvalonia.ViewModels.Pages"
+             xmlns:suki="https://github.com/kikipoulet/SukiUI"
+             x:Class="MFAAvalonia.Views.Pages.StatsView"
+             x:DataType="pages:StatsViewModel"
+             d:DesignHeight="600"
+             d:DesignWidth="900"
+             mc:Ignorable="d">
+    <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,*">
+        <StackPanel Margin="8,0,0,12">
+            <TextBlock
+                FontSize="24"
+                FontWeight="Bold"
+                Text="统计" />
+            <TextBlock
+                Margin="0,4,0,0"
+                FontSize="12"
+                Foreground="{DynamicResource SukiLowText}"
+                Text="口径：只在任务前后打点，没有任务就没有数据；识别失败不显示为 0。" />
+        </StackPanel>
+
+        <suki:GlassCard Grid.Row="1" Classes="ScenicPanel" Padding="12,10">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" ColumnSpacing="12">
+                <TextBlock VerticalAlignment="Center" Text="账号" />
+                <ComboBox
+                    Grid.Column="1"
+                    Width="160"
+                    ItemsSource="{Binding Accounts}"
+                    PlaceholderText="无账号数据"
+                    SelectedItem="{Binding SelectedAccount}" />
+                <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="范围" />
+                <ComboBox
+                    Grid.Column="3"
+                    Width="160"
+                    HorizontalAlignment="Left"
+                    ItemsSource="{Binding Ranges}"
+                    SelectedIndex="{Binding SelectedRangeIndex}" />
+                <Button
+                    Grid.Column="4"
+                    Classes="Flat Rounded"
+                    Command="{Binding RefreshCommand}"
+                    Content="刷新" />
+                <Button
+                    Grid.Column="5"
+                    Classes="Flat Rounded"
+                    Command="{Binding ExportCsvCommand}"
+                    Content="导出 CSV" />
+            </Grid>
+        </suki:GlassCard>
+
+        <UniformGrid Grid.Row="2" Margin="0,12" Columns="4">
+            <suki:GlassCard Margin="0,0,10,0" Classes="ScenicPanel" Padding="16">
+                <StackPanel Spacing="6">
+                    <TextBlock FontSize="13" Foreground="{DynamicResource SukiLowText}" Text="总产出" />
+                    <StackPanel Spacing="2">
+                        <TextBlock FontSize="16" FontWeight="DemiBold" Text="{Binding OutputApText}" />
+                        <TextBlock FontSize="16" FontWeight="DemiBold" Text="{Binding OutputCoinText}" />
+                        <TextBlock FontSize="16" FontWeight="DemiBold" Text="{Binding OutputGemText}" />
+                    </StackPanel>
+                </StackPanel>
+            </suki:GlassCard>
+            <suki:GlassCard Margin="0,0,10,0" Classes="ScenicPanel" Padding="16">
+                <StackPanel Spacing="6">
+                    <TextBlock FontSize="13" Foreground="{DynamicResource SukiLowText}" Text="总消耗" />
+                    <StackPanel Spacing="2">
+                        <TextBlock FontSize="16" FontWeight="DemiBold" Text="{Binding ConsumeApText}" />
+                        <TextBlock FontSize="16" FontWeight="DemiBold" Text="{Binding ConsumeCoinText}" />
+                        <TextBlock FontSize="16" FontWeight="DemiBold" Text="{Binding ConsumeGemText}" />
+                    </StackPanel>
+                </StackPanel>
+            </suki:GlassCard>
+            <suki:GlassCard Margin="0,0,10,0" Classes="ScenicPanel" Padding="16">
+                <StackPanel Spacing="6">
+                    <TextBlock FontSize="13" Foreground="{DynamicResource SukiLowText}" Text="运行成功" />
+                    <TextBlock FontSize="26" FontWeight="Bold" Text="{Binding SuccessText}" />
+                    <TextBlock FontSize="12" Foreground="{DynamicResource SukiLowText}" Text="三项资源均识别到差值" />
+                </StackPanel>
+            </suki:GlassCard>
+            <suki:GlassCard Classes="ScenicPanel" Padding="16">
+                <StackPanel Spacing="6">
+                    <TextBlock FontSize="13" Foreground="{DynamicResource SukiLowText}" Text="识别失败" />
+                    <TextBlock FontSize="26" FontWeight="Bold" Text="{Binding FailureText}" />
+                    <TextBlock FontSize="12" Foreground="{DynamicResource SukiLowText}" Text="任一项未识别到差值" />
+                </StackPanel>
+            </suki:GlassCard>
+        </UniformGrid>
+
+        <suki:GlassCard Grid.Row="3" Classes="ScenicPanel" Padding="12">
+            <Grid RowDefinitions="Auto,*">
+                <StackPanel Margin="4,0,4,8" Spacing="4">
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{DynamicResource SukiLowText}"
+                        Text="{Binding StatusText}"
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        FontSize="13"
+                        Foreground="{DynamicResource SukiLowText}"
+                        IsVisible="{Binding IsEmpty}"
+                        Text="{Binding EmptyHint}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+                <ScrollViewer Grid.Row="1">
+                    <StackPanel>
+                        <Border
+                            BorderBrush="{DynamicResource SukiBorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="8,6">
+                            <Grid ColumnDefinitions="2*,1.7*,1.7*,80,80,80,80">
+                                <TextBlock FontSize="12" FontWeight="DemiBold" Text="任务" />
+                                <TextBlock Grid.Column="1" FontSize="12" FontWeight="DemiBold" Text="产出" />
+                                <TextBlock Grid.Column="2" FontSize="12" FontWeight="DemiBold" Text="消耗" />
+                                <TextBlock Grid.Column="3" FontSize="12" FontWeight="DemiBold" Text="运行" />
+                                <TextBlock Grid.Column="4" FontSize="12" FontWeight="DemiBold" Text="成功" />
+                                <TextBlock Grid.Column="5" FontSize="12" FontWeight="DemiBold" Text="识别失败" />
+                                <TextBlock Grid.Column="6" FontSize="12" FontWeight="DemiBold" Text="中断" />
+                            </Grid>
+                        </Border>
+                        <ItemsControl ItemsSource="{Binding Rows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="pages:StatsRowItem">
+                                    <Border
+                                        BorderBrush="{DynamicResource SukiBorderBrush}"
+                                        BorderThickness="0,0,0,1"
+                                        Opacity="{Binding Opacity}"
+                                        Padding="8,6">
+                                        <Grid ColumnDefinitions="2*,1.7*,1.7*,80,80,80,80">
+                                            <TextBlock FontSize="13" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="1" FontSize="13" Text="{Binding ProduceText}" TextWrapping="Wrap" />
+                                            <TextBlock Grid.Column="2" FontSize="13" Text="{Binding ConsumeText}" TextWrapping="Wrap" />
+                                            <TextBlock Grid.Column="3" FontSize="13" Text="{Binding RunsText}" />
+                                            <TextBlock Grid.Column="4" FontSize="13" Text="{Binding SuccessText}" />
+                                            <TextBlock Grid.Column="5" FontSize="13" Text="{Binding FailureText}" />
+                                            <TextBlock Grid.Column="6" FontSize="13" Text="{Binding InterruptedText}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </suki:GlassCard>
+    </Grid>
+</UserControl>

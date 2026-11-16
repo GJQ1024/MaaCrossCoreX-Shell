@@ -1253,7 +1253,7 @@
                                 <Grid ToolTip.Tip="{markup:I18n {x:Static helper:LangKeys.TooltipDragLabel}}"
                                       Background="Transparent"
                                       extensions:DragDropExtensions.LimitDragDrop="True"
-                                      ColumnDefinitions="Auto,*,36,20,3,18"
+                                      ColumnDefinitions="Auto,*,36,20,20,18"
                                       ContextMenu="{StaticResource TaskMenu}"
                                       PointerPressed="TaskItem_OnPointerPressed"
                                       ContextRequested="TaskItem_OnContextRequested"
@@ -1275,23 +1275,32 @@
                                             </MultiBinding>
                                         </CheckBox.IsEnabled>
                                     </CheckBox>
-                                    <Grid Grid.Column="1"
-                                          ColumnDefinitions="Auto,*"
-                                          Background="Transparent"
-                                          MinWidth="0"
-                                          VerticalAlignment="Center">
-                                        <controls:DisplayIcon Grid.Column="0"
-                                                              IconSource="{Binding ResolvedIcon}"
-                                                              IconSize="20"
-                                                              IsVisible="{Binding HasIcon}"
-                                                              Margin="0,0,6,0"
-                                                              VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding Name}"
+                                    <StackPanel Grid.Column="1"
+                                                Background="Transparent"
+                                                MinWidth="0"
+                                                VerticalAlignment="Center">
+                                        <Grid ColumnDefinitions="Auto,*"
+                                              Background="Transparent"
+                                              MinWidth="0">
+                                            <controls:DisplayIcon Grid.Column="0"
+                                                                  IconSource="{Binding ResolvedIcon}"
+                                                                  IconSize="20"
+                                                                  IsVisible="{Binding HasIcon}"
+                                                                  Margin="0,0,6,0"
+                                                                  VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Name}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       TextWrapping="NoWrap"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
+                                        <TextBlock Text="{Binding ScheduleText}"
+                                                   IsVisible="{Binding IsScheduleInfoVisible}"
+                                                   Foreground="{DynamicResource SukiLowText}"
+                                                   FontSize="10"
                                                    TextTrimming="CharacterEllipsis"
-                                                   TextWrapping="NoWrap"
-                                                   VerticalAlignment="Center" />
-                                    </Grid>
+                                                   TextWrapping="NoWrap" />
+                                    </StackPanel>
                                     <TextBlock Grid.Column="2"
                                                Width="36"
                                                Text="{Binding RunElapsedText}"
@@ -1315,6 +1324,23 @@
                                                  GroupName="TaskSettings"
                                                  IsVisible="{Binding IsVisible}"
                                                  HorizontalContentAlignment="Center" />
+                                    <ToggleButton Grid.Column="4"
+                                                  Width="20"
+                                                  Height="20"
+                                                  MinWidth="0"
+                                                  Padding="0"
+                                                  Background="Transparent"
+                                                  BorderThickness="0"
+                                                  IsChecked="{Binding IsScheduleEnabled}"
+                                                  IsVisible="{Binding CanSchedule}"
+                                                  ToolTip.Tip="任务级定时：按任务自己的下次时间单条运行"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center">
+                                        <Path Width="14" Height="14"
+                                              Stretch="Uniform"
+                                              Data="{x:Static suki:Icons.Calendar}"
+                                              Fill="{DynamicResource SukiLowText}" />
+                                    </ToggleButton>
                                     <Grid Grid.Column="5" Width="18" Height="20"
                                           IsVisible="{Binding IsRunStatusVisible}"
                                           VerticalAlignment="Center">

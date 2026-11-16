@@ -2,20 +2,21 @@
 <div align="center">
   <img alt="MFAAvalonia" src="./docs/images/mfa-logo_512x512.png" width="192" height="192" />
 
-# MFAAvalonia
+# MFAAvalonia (MaaCrossCoreX fork)
 
-A cross-platform desktop interface for MaaFramework
+A cross-platform desktop interface for MaaFramework — the shell used by MaaCrossCoreX
 
-[![License](https://img.shields.io/github/license/MaaXYZ/MFAAvalonia?style=flat-square&color=4a90d9)](./LICENSE)
+[![License](https://img.shields.io/badge/License-GPL--3.0-4a90d9?style=flat-square)](./LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-blueviolet?style=flat-square)](https://github.com/MaaXYZ/MFAAvalonia)
-[![Commit Activity](https://img.shields.io/github/commit-activity/m/MaaXYZ/MFAAvalonia?style=flat-square&color=00d4aa)](https://github.com/MaaXYZ/MFAAvalonia/commits)
-[![Stars](https://img.shields.io/github/stars/MaaXYZ/MFAAvalonia?style=flat-square&color=ffca28)](https://github.com/MaaXYZ/MFAAvalonia/stargazers)
-[![Mirror Chyan](https://img.shields.io/badge/Mirror%20Chyan-%239af3f6?style=flat-square&logo=countingworkspro&logoColor=4f46e5)](https://mirrorchyan.com/zh/projects?rid=MFAAvalonia&source=mfaagh-badge)
+[![Platform](https://img.shields.io/badge/Platform-Windows-blueviolet?style=flat-square)](https://github.com/GJQ1024/MaaCrossCoreX-Shell)
 
 **English** | [简体中文](./README.md)
 
 </div>
+
+> This repository holds the desktop shell sources (modified) for [MaaCrossCoreX](https://github.com/GJQ1024/MaaCrossCoreX),
+> and is **not** the upstream official repository. Upstream is [SweetSmellFox/MFAAvalonia](https://github.com/SweetSmellFox/MFAAvalonia) (GPL-3.0).
+> We add task-queue grouping, scheduling, a stats page and deep merging of action params; the full history is preserved.
 
 ## Overview
 
@@ -78,7 +79,7 @@ MFAAvalonia is intended for configuring and running packaged resources. Use the 
 
 ### Manual integration
 
-1. Download the release matching the target operating system and architecture from [Releases](https://github.com/MaaXYZ/MFAAvalonia/releases), then extract it.
+1. Download the release matching the target operating system and architecture from [Releases](https://github.com/GJQ1024/MaaCrossCoreX-Shell/releases), then extract it.
 2. Place `interface.json`, resource files, and required components according to the Project Interface V2 directory conventions.
 3. Install the .NET 10 Runtime and start the MFAAvalonia executable for your platform.
 
@@ -238,16 +239,4 @@ MFAAvalonia is licensed under the [GPL-3.0 License](./LICENSE).
 
 MFAAvalonia uses open-source projects and services including [MaaFramework](https://github.com/MaaXYZ/MaaFramework), [MaaFramework.Binding.CSharp](https://github.com/MaaXYZ/MaaFramework.Binding.CSharp), [Avalonia](https://github.com/AvaloniaUI/Avalonia), [SukiUI](https://github.com/kikipoulet/SukiUI), [Serilog](https://github.com/serilog/serilog), [Newtonsoft.Json](https://github.com/JamesNK/Newtonsoft.Json), and [Mirror Chyan](https://github.com/MirrorChyan/docs).
 
-Thanks to everyone who has contributed to MFAAvalonia.
-
-<a href="https://github.com/MaaXYZ/MFAAvalonia/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=MaaXYZ/MFAAvalonia&max=1000" alt="Contributors" />
-</a>
-
-<div align="center">
-
-**If this project helps you, please give us a ⭐ Star!**
-
-[![Star History Chart](https://star-history.dera.page/svg?repos=MaaXYZ/MFAAvalonia&type=Date)](https://star-history.dera.page/#MaaXYZ/MFAAvalonia&Date)
-
-</div>
+Thanks to everyone who has contributed to MFAAvalonia, and to the upstream [SweetSmellFox/MFAAvalonia](https://github.com/SweetSmellFox/MFAAvalonia) for continued maintenance.

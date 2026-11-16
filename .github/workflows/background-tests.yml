@@ -1,13 +1,6 @@
 name: Background Layout Tests
 
 on:
-  pull_request:
-    branches: [master]
-    paths:
-      - 'MFAAvalonia/**'
-      - 'SukiUI/**'
-      - 'MFAAvalonia.Background.Tests/**'
-      - '.github/workflows/background-tests.yml'
   workflow_dispatch:
 
 permissions:

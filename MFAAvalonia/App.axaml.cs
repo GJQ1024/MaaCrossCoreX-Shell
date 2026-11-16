@@ -233,6 +233,9 @@ public partial class App : Application
                     // 定时调度与设置页解耦：即使从未打开定时页，也要启动分钟级检查
                     _ = MFAAvalonia.ViewModels.Other.TimerModel.Instance;
 
+                    // 任务级 NextRun 调度：与 8 槽位并存，共用运行锁
+                    MFAAvalonia.Helper.JobScheduler.Start();
+
                     // 启动懒加载：先加载 ActiveTab，再加载有定时任务的，最后加载其余
                     _ = MaaProcessorManager.Instance.StartLazyLoadingAsync();
                 }
@@ -407,6 +410,7 @@ public partial class App : Application
             .AddView<ResourcesView, ResourcesViewModel>(services)
             .AddView<SettingsView, SettingsViewModel>(services)
             .AddOnlyView<ScheduleView, TimerSettingsUserControlModel>(services)
+            .AddView<StatsView, StatsViewModel>(services)
             .AddView<ScreenshotView, ScreenshotViewModel>(services)
 
             // Add additional views

@@ -1,12 +1,6 @@
 ﻿name: Cross-Platform Release
 
 on:
-  push:
-    tags:
-      - 't*'
-  pull_request:
-    branches:
-      - master
   workflow_dispatch:
 
 permissions:

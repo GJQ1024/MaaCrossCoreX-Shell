@@ -89,6 +89,7 @@ public partial class TaskQueueViewModel : ViewModelBase, IDisposable
         IsRunning = _processorField.TaskQueue.Count > 0;
         _processorField.TaskQueue.CountChanged += OnTaskQueueCountChanged;
         LanguageHelper.LanguageChanged += OnLanguageChanged;
+        JobScheduleStore.Changed += OnJobScheduleChanged;
 
         // Re-initialize with the correct processor since base constructor might have used Current
         Initialize();
@@ -1823,6 +1824,18 @@ public partial class TaskQueueViewModel : ViewModelBase, IDisposable
             }
 
             RefreshTaskGroups();
+        });
+    }
+
+    private void OnJobScheduleChanged()
+    {
+        DispatcherHelper.PostOnMainThread(() =>
+        {
+            if (Volatile.Read(ref _isDisposed) != 0)
+                return;
+
+            foreach (var item in TaskItemViewModels)
+                item.RefreshSchedule();
         });
     }
 
@@ -3764,6 +3777,7 @@ public partial class TaskQueueViewModel : ViewModelBase, IDisposable
     /// </summary>
     public void SetCurrentTaskName(string taskName)
     {
+        Processor.FrameRecorder.SetTask(taskName);
         DispatcherHelper.PostOnMainThread(() => CurrentTaskName = taskName);
     }
 
@@ -3998,6 +4012,7 @@ public partial class TaskQueueViewModel : ViewModelBase, IDisposable
 
         _processorField.TaskQueue.CountChanged -= OnTaskQueueCountChanged;
         LanguageHelper.LanguageChanged -= OnLanguageChanged;
+        JobScheduleStore.Changed -= OnJobScheduleChanged;
         _appliedPresets?.ForEach(p => p.UnsubscribeLanguage());
         _appliedPresets = null;
 

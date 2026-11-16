@@ -56,6 +56,11 @@
                                                                 IconVariant=Regular}"
                                                PageContent="{extensions:ServiceProvider ServiceType={x:Type pages:ScheduleView}}" />
                         <suki:SukiSideMenuItem IsContentMovable="False"
+                                               Header="统计"
+                                               Icon="{fluent:FluentIcon Icon=DataBarVertical,
+                                                                IconVariant=Regular}"
+                                               PageContent="{extensions:ServiceProvider ServiceType={x:Type pages:StatsView}}" />
+                        <suki:SukiSideMenuItem IsContentMovable="False"
                                                Header="{markup:I18n {x:Static helper:LangKeys.Monitor}}"
                                                PageContent="{extensions:ServiceProvider ServiceType={x:Type pages:MonitorView}}">
                             <suki:SukiSideMenuItem.Icon>

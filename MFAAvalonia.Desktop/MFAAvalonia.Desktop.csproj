@@ -10,6 +10,15 @@
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <ApplicationIcon>..\MFAAvalonia\Assets\logo.ico</ApplicationIcon>
         <CETCompat>false</CETCompat>
+        <Version>1.0.0</Version>
+        <AssemblyVersion>1.0.0.0</AssemblyVersion>
+        <FileVersion>1.0.0.0</FileVersion>
+        <InformationalVersion>1.0.0</InformationalVersion>
+        <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+        <AssemblyTitle>MaaCrossCoreX</AssemblyTitle>
+        <Product>MaaCrossCoreX</Product>
+        <Company>MaaCrossCoreX</Company>
+        <Copyright>Copyright © 2026 MaaCrossCoreX. 基于 MFAAvalonia 与 MaaFramework 修改，上游版权归其各自作者所有（GPL-3.0 / LGPL-3.0）。</Copyright>
     </PropertyGroup>
 
     <PropertyGroup>

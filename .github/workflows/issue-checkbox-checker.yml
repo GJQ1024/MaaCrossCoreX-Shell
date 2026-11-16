@@ -1,8 +1,7 @@
 name: Issue Review
 
 on:
-  issues:
-    types: [opened]
+  workflow_dispatch:
 
 jobs:
   check-then-close-or-fold:

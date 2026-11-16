@@ -438,6 +438,7 @@ public static partial class Instances
     private static ResourcesViewModel _resourcesViewModel;
     private static MonitorView _monitorView;
     private static MonitorViewModel _monitorViewModel;
+    private static StatsViewModel _statsViewModel;
     private static ScreenshotView _screenshotView;
     private static ScreenshotViewModel _screenshotViewModel;
     
