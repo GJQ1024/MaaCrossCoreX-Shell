@@ -1,6 +1,6 @@
 <!-- markdownlint-disable MD033 MD041 -->
 <div align="center">
-  <img alt="MFAAvalonia" src="./docs/images/mfa-logo_512x512.png" width="192" height="192" />
+  <img alt="MaaCrossCoreX" src="./docs/img/logo.png" width="192" height="192" />
 
 # MFAAvalonia（MaaCrossCoreX 修改版）
 
@@ -51,12 +51,6 @@ MFAAvalonia 本身不包含具体业务资源。通常应将它集成到基于 M
 - 支持钉钉、飞书、Telegram、Discord、SMTP、WxPusher、QMsg、OneBot、Server酱和自定义 Webhook 等外部通知方式。
 - 支持可配置的任务面板布局，详见[自定义布局](./docs/zh/自定义布局.md)。
 - 资源可在 PI 中配置 Sentry 遥测；只有资源提供遥测配置且用户未关闭“帮助改进软件”时才会发送诊断信息。
-
-## 界面预览
-
-<p align="center">
-  <img alt="MFAAvalonia 界面预览" src="./docs/images/preview.png" width="100%" />
-</p>
 
 ## 运行要求
 
@@ -213,10 +207,6 @@ MFAAvalonia 在 Project Interface V2 的 `task` 项中额外支持以下字段�
 ```
 
 呈现方式取值为 `SideBlend`、`CenteredBlend`、`Blurred`，方向为 `Left`、`Right`、`Top`、`Bottom`，图片强度为0至1，虚化程度为0至60。这些是客户端配置，不是 `interface.json` 的任务选项。
-
-### 自定义图标
-
-将 `logo.ico` 放置在程序根目录的 `Assets` 文件夹中，即可替换 MFAAvalonia 的窗口和托盘图标。
 
 ## 从源码构建
 

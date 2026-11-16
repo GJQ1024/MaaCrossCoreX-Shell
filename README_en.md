@@ -1,6 +1,6 @@
 <!-- markdownlint-disable MD033 MD041 -->
 <div align="center">
-  <img alt="MFAAvalonia" src="./docs/images/mfa-logo_512x512.png" width="192" height="192" />
+  <img alt="MaaCrossCoreX" src="./docs/img/logo.png" width="192" height="192" />
 
 # MFAAvalonia (MaaCrossCoreX fork)
 
@@ -52,12 +52,6 @@ MFAAvalonia does not include application-specific resources. It is normally inte
 - Supports DingTalk, Lark, Telegram, Discord, SMTP, WxPusher, QMsg, OneBot, ServerChan, and custom webhook notifications.
 - Supports resource-configurable task dashboard layouts. See [Custom Layout](./docs/en/custom-layout.md).
 - Resources can configure Sentry telemetry through PI. Diagnostic data is sent only when the resource provides telemetry settings and the user has not disabled "Help improve software."
-
-## Preview
-
-<p align="center">
-  <img alt="MFAAvalonia preview" src="./docs/images/preview.png" width="100%" />
-</p>
 
 ## Requirements
 
@@ -214,10 +208,6 @@ A first-launch `config/config.template.json` can preset these client settings:
 ```
 
 Presentation values are `SideBlend`, `CenteredBlend`, and `Blurred`; placement values are `Left`, `Right`, `Top`, and `Bottom`. Strength ranges from 0 to 1 and blur from 0 to 60. These are client settings, not task options in `interface.json`.
-
-### Custom icon
-
-Place `logo.ico` in the `Assets` folder under the application root to replace the MFAAvalonia window and tray icons.
 
 ## Building from Source
 
