@@ -22,14 +22,41 @@ public class TitleConverter : MarkupExtension, IMultiValueConverter
         var resourceVersion = SafeGetValue<string>(values, 5);
         var isResourceVisible = SafeGetValue<bool>(values, 6);
 
-        var result = $"{appName} {appVersion}";
         // 主逻辑
         if (isCustomVisible && !string.IsNullOrEmpty(customTitle))
-            result = customTitle;
+            return customTitle;
 
-        if (isResourceVisible && !string.IsNullOrEmpty(resourceName))
-            result = $"{appName} {appVersion} | {resourceName} {resourceVersion}";
-        return result;
+        // 逐段拼接，空段（含零宽占位符）直接跳过，避免出现多余的分隔符
+        var parts = new List<string>(2);
+        var mainPart = Normalize($"{appName} {appVersion}");
+        if (mainPart.Length > 0)
+            parts.Add(mainPart);
+
+        if (isResourceVisible)
+        {
+            var resourcePart = Normalize($"{resourceName} {resourceVersion}");
+            if (resourcePart.Length > 0)
+                parts.Add(resourcePart);
+        }
+
+        return string.Join(" | ", parts);
+    }
+
+    /// <summary>
+    /// 去掉零宽字符并裁剪首尾空白，用于判断标题片段是否为空
+    /// </summary>
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+
+        var builder = new System.Text.StringBuilder(value.Length);
+        foreach (var ch in value)
+        {
+            if (ch is '\u200B' or '\u200C' or '\u200D' or '\uFEFF')
+                continue;
+            builder.Append(ch);
+        }
+        return builder.ToString().Trim();
     }
 
     public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)

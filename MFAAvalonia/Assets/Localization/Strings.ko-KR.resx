@@ -1737,7 +1737,7 @@
             <value>시스템 구성 요소 누락</value>
         </data>
         <data name="RuntimeMissingDescription" xml:space="preserve">
-            <value>MFAAvalonia를 실행하려면 Microsoft Visual C++ Redistributable (x64)이 필요합니다.</value>
+            <value>MaaCrossCoreX를 실행하려면 Microsoft Visual C++ Redistributable (x64)이 필요합니다.</value>
         </data>
         <data name="DownloadAndInstall" xml:space="preserve">
             <value>다운로드 및 설치</value>

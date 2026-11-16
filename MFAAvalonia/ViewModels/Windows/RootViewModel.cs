@@ -239,7 +239,9 @@ public partial class RootViewModel : ViewModelBase
     public void UpdateName()
     {
         var result = LanguageHelper.GetLocalizedDisplayName(_resourceNameKey, _resourceFallbackKey);
-        if (result.Equals("debug", StringComparison.OrdinalIgnoreCase))
+        // 资源名只有零宽占位符时视为未设置，避免标题里多出空的分隔段
+        if (result.Equals("debug", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(result.Trim('\u200B', '\u200C', '\u200D', '\uFEFF')))
             IsResourceNameVisible = false;
         else
             ResourceName = result;

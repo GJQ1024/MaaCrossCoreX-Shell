@@ -1986,7 +1986,7 @@
             <value>ランタイムがありません</value>
         </data>
   <data name="RuntimeMissingDescription" xml:space="preserve">
-            <value>MFAAvalonia を実行するには、Microsoft Visual C++ 再頒布可能パッケージ (x64) が必要です。</value>
+            <value>MaaCrossCoreX を実行するには、Microsoft Visual C++ 再頒布可能パッケージ (x64) が必要です。</value>
         </data>
   <data name="DownloadAndInstall" xml:space="preserve">
             <value>ダウンロードしてインストールする</value>

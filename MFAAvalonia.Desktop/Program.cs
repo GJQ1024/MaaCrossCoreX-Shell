@@ -55,10 +55,10 @@ sealed class Program
             }
         }
 
-        // 快速识别参数：用于更新时判断该可执行文件是否为 MFAAvalonia
+        // 快速识别参数：用于更新时判断该可执行文件是否为 MaaCrossCoreX
         if (args.Length > 0 && args[0] == "--identify")
         {
-            Console.Write("MFAAvalonia");
+            Console.Write("MaaCrossCoreX");
             return;
         }
 
@@ -70,7 +70,7 @@ sealed class Program
 
         try
         {
-            var executablePath = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "MFAAvalonia.exe");
+            var executablePath = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "MaaCrossCoreX.exe");
             var instanceKey = AppRuntime.CreateInstanceKey(executablePath);
             if (TaskParamDump.IsRequested)
                 instanceKey += "-paramdump";

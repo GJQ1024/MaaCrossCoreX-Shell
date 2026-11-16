@@ -1799,7 +1799,7 @@
         <value>缺少系統組件</value>
     </data>
     <data name="RuntimeMissingDescription" xml:space="preserve">
-        <value>MFAAvalonia 需要 Microsoft Visual C++ Redistributable (x64) 才能運行。</value>
+        <value>MaaCrossCoreX 需要 Microsoft Visual C++ Redistributable (x64) 才能運行。</value>
     </data>
     <data name="DownloadAndInstall" xml:space="preserve">
         <value>下載並安裝</value>

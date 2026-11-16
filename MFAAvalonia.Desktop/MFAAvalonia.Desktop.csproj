@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
-        <AssemblyName>MFAAvalonia</AssemblyName>
+        <AssemblyName>MaaCrossCoreX</AssemblyName>
         <OutputName>MFAAvalonia</OutputName>
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>

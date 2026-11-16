@@ -115,19 +115,19 @@ jobs:
           
           # 对主程序和相关可执行文件进行adhoc签名（-s - 表示使用adhoc签名）
           # 签名所有可执行文件（包括应用程序和更新器）
-          find . -type f -name "MFAAvalonia*" -exec codesign -s - --force --deep {} \;
+          find . -type f -name "MaaCrossCoreX*" -exec codesign -s - --force --deep {} \;
           find . -type f -name "MFAUpdater*" -exec codesign -s - --force --deep {} \;
           
           # 验证签名是否成功
           echo "验证签名结果："
-          find . -type f -name "MFAAvalonia*" -exec codesign -v {} \;
+          find . -type f -name "MaaCrossCoreX*" -exec codesign -v {} \;
         shell: bash
       
       - name: Unified ZIP Packaging
         shell: bash
         run: |
           BUILD_DIR="bin/AnyCPU/Release/${{ matrix.platform }}-${{ matrix.arch }}/publish"
-          OUTPUT_FILE="MFAAvalonia-${{ needs.meta.outputs.tag }}-${{ matrix.platform }}-${{ matrix.arch }}.zip"
+          OUTPUT_FILE="MaaCrossCoreX-${{ needs.meta.outputs.tag }}-${{ matrix.platform }}-${{ matrix.arch }}.zip"
           
           # 直接压缩构建目录
           cd $BUILD_DIR
@@ -173,17 +173,17 @@ jobs:
               unzip -q *.zip
               rm *.zip
           
-              # Set execute permissions for MFAAvalonia
-              find . -type f -name "MFAAvalonia*" -exec chmod +x {} \; 2>/dev/null || true
-              echo "Set execute permission for all MFAAvalonia files"
+              # Set execute permissions for MaaCrossCoreX
+              find . -type f -name "MaaCrossCoreX*" -exec chmod +x {} \; 2>/dev/null || true
+              echo "Set execute permission for all MaaCrossCoreX files"
           
               # Set execute permissions for MFAUpdater
               find . -type f -name "MFAUpdater*" -exec chmod +x {} \; 2>/dev/null || true
               echo "Set execute permission for all MFAUpdater files"
           
               # Create tar.gz with preserved permissions
-              tar -cpzf ../MFAAvalonia-${{ needs.meta.outputs.tag }}-${f}.tar.gz .
-              echo "Created archive with preserved permissions: MFAAvalonia-${{ needs.meta.outputs.tag }}-${f}.tar.gz"
+              tar -cpzf ../MaaCrossCoreX-${{ needs.meta.outputs.tag }}-${f}.tar.gz .
+              echo "Created archive with preserved permissions: MaaCrossCoreX-${{ needs.meta.outputs.tag }}-${f}.tar.gz"
           
               cd ..
               # Remove the original directory to avoid duplicate files

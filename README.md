@@ -109,7 +109,7 @@ MFAAvalonia 面向资源发布后的配置与运行。开发和排查 Pipeline �
 MFAAvalonia 支持通过命令行选择实例并执行任务。实例可以使用名称或实例 ID 指定；实例 ID 可在实例标签页的右键菜单中复制。
 
 ```text
-MFAAvalonia.exe [参数]
+MaaCrossCoreX.exe [参数]
 ```
 
 | 参数 | 作用 |
@@ -124,21 +124,21 @@ MFAAvalonia.exe [参数]
 
 ```powershell
 # 查看帮助
-.\MFAAvalonia.exe --help
+.\MaaCrossCoreX.exe --help
 
 # 切换到指定实例
-.\MFAAvalonia.exe --instance "日常任务"
-.\MFAAvalonia.exe -i 1a2b3c4d
+.\MaaCrossCoreX.exe --instance "日常任务"
+.\MaaCrossCoreX.exe -i 1a2b3c4d
 
 # 自动执行指定实例
-.\MFAAvalonia.exe --autostart -i "日常任务"
+.\MaaCrossCoreX.exe --autostart -i "日常任务"
 
 # 执行完成后退出
-.\MFAAvalonia.exe --autostart -i 1a2b3c4d -q
+.\MaaCrossCoreX.exe --autostart -i 1a2b3c4d -q
 
 # 若实例正在运行，则停止后重新执行
-.\MFAAvalonia.exe --autostart -i "日常任务" --forceStart
-.\MFAAvalonia.exe --autostart -c 1a2b3c4d -f
+.\MaaCrossCoreX.exe --autostart -i "日常任务" --forceStart
+.\MaaCrossCoreX.exe --autostart -c 1a2b3c4d -f
 ```
 
 ### 参数组合规则

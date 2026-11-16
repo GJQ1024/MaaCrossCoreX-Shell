@@ -1814,7 +1814,7 @@ Please do not copy only the main executable by itself.</value>
             <value>System Component Missing</value>
         </data>
         <data name="RuntimeMissingDescription" xml:space="preserve">
-            <value>MFAAvalonia requires Microsoft Visual C++ Redistributable (x64) to run.</value>
+            <value>MaaCrossCoreX requires Microsoft Visual C++ Redistributable (x64) to run.</value>
         </data>
         <data name="DownloadAndInstall" xml:space="preserve">
             <value>Download and Install</value>

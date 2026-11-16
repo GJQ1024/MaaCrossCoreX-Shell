@@ -100,11 +100,11 @@ public static class AppRuntime
     public static string GetHelpText(string? executablePath = null)
     {
         var executableName = string.IsNullOrWhiteSpace(executablePath)
-            ? "MFAAvalonia"
+            ? "MaaCrossCoreX"
             : Path.GetFileName(executablePath);
 
         return $"""
-MFAAvalonia 命令行参数
+MaaCrossCoreX 命令行参数
 
 用法:
   {executableName} [参数]
