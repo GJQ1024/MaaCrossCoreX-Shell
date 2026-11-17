@@ -327,7 +327,8 @@ public partial class VersionUpdateSettingsUserControlModel : ViewModelBase
     [RelayCommand]
     private void UpdateMFA()
     {
-        VersionChecker.UpdateMFAAsync();
+        // 只跳转 GitHub 发布页，不在壳内下载/解压/覆盖安装目录。
+        VersionChecker.OpenReleasePage(string.Empty);
     }
     [RelayCommand]
     private void CheckMFAUpdate()

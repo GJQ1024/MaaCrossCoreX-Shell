@@ -9,6 +9,7 @@ using MFAAvalonia.Extensions;
 using MFAAvalonia.Extensions.MaaFW;
 using MFAAvalonia.Helper.Converters;
 using MFAAvalonia.Helper.ValueType;
+using MFAAvalonia.Utilities;
 using MFAAvalonia.ViewModels.UsersControls.Settings;
 using MFAAvalonia.ViewModels.Windows;
 using MFAAvalonia.Views.UserControls;
@@ -54,6 +55,11 @@ public static class VersionChecker
     private const string ResourceUpdateDebugEnv = "MFA_DEBUG_UPDATE_RESOURCE";
     private const string ResourceUpdateDryRunEnv = "MFA_DEBUG_UPDATE_RESOURCE_DRY_RUN";
     private const string ResourceUpdateKeepArtifactsEnv = "MFA_DEBUG_UPDATE_RESOURCE_KEEP";
+
+    // 壳（本体）发布仓库。版本口径以 Release tag 为真源：tag 去掉前缀 v 后应与 interface.json 的 version 全等。
+    private const string UiReleaseOwner = "GJQ1024";
+    private const string UiReleaseRepo = "MaaCrossCoreX";
+    private const string UiReleasePageUrl = "https://github.com/GJQ1024/MaaCrossCoreX/releases";
 
     public enum VersionType
     {
@@ -388,14 +394,12 @@ public static class VersionChecker
                 AddResourceCheckTask(notifyWhenUpToDate: !isStartup, notifyOnError: !isStartup);
             }
 
-        // if (config.AutoUpdateMFA)
-        // {
-        //     AddMFAUpdateTask();
-        // }
-        // else if (config.CheckVersion)
-        // {
-        //     AddMFACheckTask();
-        // }
+            // 本体只做「检查 + 提示 + 跳转发布页」：不下载、不解压、不覆盖安装目录、不重启。
+            // AddMFAUpdateTask（自动下载替换）保持停用。
+            if (config.CheckVersion)
+            {
+                AddMFACheckTask(isStartup);
+            }
 
             await TaskManager.RunTaskAsync(async () => await ExecuteTasksAsync(),
                 () => ToastNotification.Show("自动更新时发生错误！"), isStartup ? "启动更新检测" : "更新检测");
@@ -407,7 +411,7 @@ public static class VersionChecker
     }
 
     public static void CheckCDKAsync() => TaskManager.RunTaskAsync(() => CheckForCDK(Instances.VersionUpdateSettingsUserControlModel.DownloadSourceIndex == 0), name: "查询CDK剩余时间");
-    public static void CheckMFAVersionAsync() => TaskManager.RunTaskAsync(async () => await CheckForMFAUpdatesAsync(Instances.VersionUpdateSettingsUserControlModel.DownloadSourceIndex == 0), name: "检测MFA版本");
+    public static void CheckMFAVersionAsync() => TaskManager.RunTaskAsync(async () => await CheckForMFAUpdatesAsync(true), name: "检测MFA版本");
     public static void CheckResourceVersionAsync() => TaskManager.RunTaskAsync(async () => await CheckForResourceUpdatesAsync(Instances.VersionUpdateSettingsUserControlModel.DownloadSourceIndex == 0), name: "检测资源版本");
     public static void UpdateResourceAsync(string
         currentVersion = "") => TaskManager.RunTaskAsync(() => UpdateResource(Instances.VersionUpdateSettingsUserControlModel.DownloadSourceIndex == 0, currentVersion: currentVersion), name: "更新资源");
@@ -431,11 +435,13 @@ public static class VersionChecker
         });
     }
 
-    private static void AddMFACheckTask()
+    private static void AddMFACheckTask(bool isStartup = false)
     {
         Queue.Enqueue(new ValueType.MFATask
         {
-            Action = async () => await CheckForMFAUpdatesAsync(Instances.VersionUpdateSettingsUserControlModel.DownloadSourceIndex == 0),
+            // 本体版本固定走 GitHub：我们的发布仓库在 MirrorChyan 镜像没有对应资源，
+            // 走镜像渠道会拿到上游 MFAAvalonia 的版本号。
+            Action = async () => await CheckForMFAUpdatesAsync(isGithub: true, isStartup: isStartup),
             Name = "更新软件"
         });
     }
@@ -613,7 +619,7 @@ public static class VersionChecker
         }
     }
 
-    public static async Task CheckForMFAUpdatesAsync(bool isGithub = true)
+    public static async Task CheckForMFAUpdatesAsync(bool isGithub = true, bool isStartup = false)
     {
         try
         {
@@ -641,19 +647,22 @@ public static class VersionChecker
             }
             else if (IsNewVersionAvailable(latestVersion, localVersion))
             {
-                DispatcherHelper.PostOnMainThread(() =>
+                if (isStartup && IsMfaUpdateNoticeSuppressed(latestVersion))
                 {
-                    Instances.ToastManager.CreateToast().WithTitle(LangKeys.SoftwareUpdate.ToLocalization())
-                        .WithContent(CreateUpdateToastContent("MFA", latestVersion)).Dismiss().After(TimeSpan.FromSeconds(6))
-                        .WithActionButton(LangKeys.Later.ToLocalization(), _ => { }, true, SukiButtonStyles.Basic)
-                        .WithActionButton(LangKeys.Update.ToLocalization(), _ =>
-                        {
-                            if (!Instances.RootViewModel.IsUpdating)
-                                UpdateMFAAsync();
-                            else
-                                ToastHelper.Warn(LangKeys.Warning.ToLocalization(), LangKeys.CurrentOtherUpdatingTask.ToLocalization());
-                        }, true).Queue();
-                });
+                    LoggerHelper.Info($"版本 {latestVersion} 已提示过，本次启动不再重复提示。");
+                }
+                else
+                {
+                    RememberMfaUpdateNotice(latestVersion);
+                    DispatcherHelper.PostOnMainThread(() =>
+                    {
+                        Instances.ToastManager.CreateToast().WithTitle(LangKeys.SoftwareUpdate.ToLocalization())
+                            .WithContent($"{LangKeys.NewVersionAvailableLatestVersion.ToLocalization()}{latestVersion}\n\n点「更新」将打开 GitHub 发布页，本程序不会自动下载或替换任何文件。")
+                            .Dismiss().After(TimeSpan.FromSeconds(20))
+                            .WithActionButton(LangKeys.Later.ToLocalization(), _ => { }, true, SukiButtonStyles.Basic)
+                            .WithActionButton(LangKeys.Update.ToLocalization(), _ => OpenReleasePage(latestVersion), true).Queue();
+                    });
+                }
             }
             else
             {
@@ -670,6 +679,48 @@ public static class VersionChecker
                 ToastHelper.Error(LangKeys.ErrorWhenCheck.ToLocalizationFormatted(false, "MFA"), ex.Message);
             Instances.RootViewModel.SetUpdating(false);
             LoggerHelper.Error($"检查 MFA 更新失败：来源={(isGithub ? "GitHub" : "Mirror")}，原因={ex.Message}", ex);
+        }
+    }
+
+
+    /// <summary>
+    /// 判断启动流程里是否已经提示过该版本（只提示一次，避免每次开机都弹）。
+    /// </summary>
+    private static bool IsMfaUpdateNoticeSuppressed(string latestVersion)
+    {
+        var notified = ConfigurationManager.Current.GetValue(ConfigurationKeys.LastNotifiedMFAVersion, string.Empty);
+        return !string.IsNullOrWhiteSpace(notified)
+               && string.Equals(notified.Trim(), latestVersion.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void RememberMfaUpdateNotice(string latestVersion)
+    {
+        try
+        {
+            ConfigurationManager.Current.SetValue(ConfigurationKeys.LastNotifiedMFAVersion, latestVersion.Trim());
+        }
+        catch (Exception ex)
+        {
+            LoggerHelper.Warning($"记录已提示的本体版本失败：{ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 打开壳本体的 GitHub 发布页。只跳转，不下载、不解压、不替换安装目录、不重启。
+    /// </summary>
+    public static void OpenReleasePage(string version)
+    {
+        var url = string.IsNullOrWhiteSpace(version)
+            ? $"{UiReleasePageUrl}/latest"
+            : $"{UiReleasePageUrl}/tag/{version.Trim()}";
+        try
+        {
+            UrlUtilities.OpenUrl(url);
+            LoggerHelper.Info($"已打开发布页：{url}");
+        }
+        catch (Exception ex)
+        {
+            LoggerHelper.Error($"打开发布页失败：{url}，原因={ex.Message}", ex);
         }
     }
 
@@ -2616,13 +2667,13 @@ public static class VersionChecker
 
 
     public static async Task<(string url, string latestVersion, string sha256)> GetLatestVersionAndDownloadUrlFromGithubAsync(
-        string owner = "MaaXYZ",
-        string repo = "MFAAvalonia",
+        string owner = UiReleaseOwner,
+        string repo = UiReleaseRepo,
         bool onlyCheck = false,
         string targetVersion = "",
         string currentVersion = "v0.0.0")
     {
-        var versionType = repo.Equals("MFAAvalonia", StringComparison.OrdinalIgnoreCase)
+        var versionType = repo.Equals(UiReleaseRepo, StringComparison.OrdinalIgnoreCase)
             ? Instances.VersionUpdateSettingsUserControlModel.UIUpdateChannelIndex.ToVersionType()
             : Instances.VersionUpdateSettingsUserControlModel.ResourceUpdateChannelIndex.ToVersionType();
         string url = string.Empty;
@@ -2696,9 +2747,9 @@ public static class VersionChecker
                             latestVersion = tagVersion;
                             if (IsNewVersionAvailable(latestVersion, currentVersion))
                             {
-                                if (onlyCheck && repo != "MFAAvalonia")
+                                if (onlyCheck && !repo.Equals(UiReleaseRepo, StringComparison.OrdinalIgnoreCase))
                                     SaveRelease(tag, "body");
-                                if (!onlyCheck && repo != "MFAAvalonia")
+                                if (!onlyCheck && !repo.Equals(UiReleaseRepo, StringComparison.OrdinalIgnoreCase))
                                     SaveChangelog(tag, "body");
                             }
                             (url, sha256) = await GetDownloadUrlFromGitHubReleaseAsync(latestVersion, owner, repo).ConfigureAwait(false);
@@ -2741,9 +2792,9 @@ public static class VersionChecker
             latestVersion = bestVersion;
             if (IsNewVersionAvailable(latestVersion, currentVersion))
             {
-                if (onlyCheck && repo != "MFAAvalonia")
+                if (onlyCheck && !repo.Equals(UiReleaseRepo, StringComparison.OrdinalIgnoreCase))
                     SaveRelease(bestRelease, "body");
-                if (!onlyCheck && repo != "MFAAvalonia")
+                if (!onlyCheck && !repo.Equals(UiReleaseRepo, StringComparison.OrdinalIgnoreCase))
                     SaveChangelog(bestRelease, "body");
             }
             (url, sha256) = await GetDownloadUrlFromGitHubReleaseAsync(latestVersion, owner, repo).ConfigureAwait(false);

@@ -197,6 +197,7 @@ public static class ConfigurationKeys
     public const string ProxyType = "ProxyType";
     public const string CurrentTasks = "CurrentTasks";
     public const string ResourceUpdateChannelInitialized = "ResourceUpdateChannelInitialized";
+    public const string LastNotifiedMFAVersion = "LastNotifiedMFAVersion";
 
     #endregion
 
