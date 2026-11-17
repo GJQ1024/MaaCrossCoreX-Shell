@@ -100,12 +100,14 @@ public partial class RootViewModel : ViewModelBase
     {
         get
         {
-            // var version = Assembly.GetExecutingAssembly().GetName().Version;
-            // var major = version.Major;
-            // var minor = version.Minor >= 0 ? version.Minor : 0;
-            // var patch = version.Build >= 0 ? version.Build : 0;
-            // return $"v{SemVersion.Parse($"{major}.{minor}.{patch}")}";
-            return "v1.0.0"; // Hardcoded version for now, replace with dynamic versioning later
+            // 取入口程序集（MaaCrossCoreX.exe）的版本，与 MFAAvalonia.Desktop.csproj 的 Version 保持一致
+            var assembly = System.Reflection.Assembly.GetEntryAssembly()
+                           ?? System.Reflection.Assembly.GetExecutingAssembly();
+            var version = assembly.GetName().Version;
+            var major = version?.Major ?? 0;
+            var minor = version?.Minor > 0 ? version.Minor : 0;
+            var patch = version?.Build > 0 ? version.Build : 0;
+            return $"v{major}.{minor}.{patch}";
         }
     }
 
