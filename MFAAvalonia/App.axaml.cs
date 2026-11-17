@@ -142,6 +142,8 @@ public partial class App : Application
             base.Initialize();
             AppPaths.Initialize();
             LoggerHelper.InitializeLogger();
+            // 上次替换资源包时若进程被杀或在切换中途断电，这里整份回退，保证不出现半新半旧。
+            ResourcePackUpdater.RecoverPendingRollback();
             if (!IsRuntimeMissingMode && !IsTempDirMode)
             {
                 MaaProcessor.StartInterfacePreload();

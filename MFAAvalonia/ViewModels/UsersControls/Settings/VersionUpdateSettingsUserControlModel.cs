@@ -67,6 +67,7 @@ public partial class VersionUpdateSettingsUserControlModel : ViewModelBase
     [ObservableProperty] private string _maaFwVersion = "";
     [ObservableProperty] private string _mfaVersion = RootViewModel.Version;
     [ObservableProperty] private string _resourceVersion = string.Empty;
+    [ObservableProperty] private string _resourceVersionDisplay = string.Empty;
     [ObservableProperty] private bool _showResourceVersion;
     [ObservableProperty] private long _cdkExpiredTime = 0;
     [ObservableProperty] private bool _cdkTextVisible = false;
@@ -184,6 +185,18 @@ public partial class VersionUpdateSettingsUserControlModel : ViewModelBase
     partial void OnResourceVersionChanged(string value)
     {
         ShowResourceVersion = !string.IsNullOrWhiteSpace(value);
+        RefreshResourceVersionDisplay();
+    }
+
+    /// <summary>
+    /// 资源版本显示为「1.0.3（资源包 1.0.4）」：壳版本与热更新资源包版本各自可见。
+    /// 热更新完成后调用一次，无需重启壳。
+    /// </summary>
+    public void RefreshResourceVersionDisplay()
+    {
+        ResourceVersionDisplay = string.IsNullOrWhiteSpace(ResourceVersion)
+            ? string.Empty
+            : ResourcePackUpdater.FormatDisplayVersion(ResourceVersion);
     }
 
     public ObservableCollection<LocalizationViewModel> DownloadSourceList =>

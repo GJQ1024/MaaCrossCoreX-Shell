@@ -55,6 +55,8 @@ public static class VersionChecker
     private const string ResourceUpdateDebugEnv = "MFA_DEBUG_UPDATE_RESOURCE";
     private const string ResourceUpdateDryRunEnv = "MFA_DEBUG_UPDATE_RESOURCE_DRY_RUN";
     private const string ResourceUpdateKeepArtifactsEnv = "MFA_DEBUG_UPDATE_RESOURCE_KEEP";
+    // 仅本地验证资源包热更新：检查到新版后自动落盘，跳过点击。
+    private const string PackAutoUpdateDebugEnv = "MFA_DEBUG_PACK_AUTO";
 
     // 壳（本体）发布仓库。版本口径以 Release tag 为真源：tag 去掉前缀 v 后应与 interface.json 的 version 全等。
     private const string UiReleaseOwner = "GJQ1024";
@@ -413,8 +415,8 @@ public static class VersionChecker
     public static void CheckCDKAsync() => TaskManager.RunTaskAsync(() => CheckForCDK(Instances.VersionUpdateSettingsUserControlModel.DownloadSourceIndex == 0), name: "查询CDK剩余时间");
     public static void CheckMFAVersionAsync() => TaskManager.RunTaskAsync(async () => await CheckForMFAUpdatesAsync(true), name: "检测MFA版本");
     public static void CheckResourceVersionAsync() => TaskManager.RunTaskAsync(async () => await CheckForResourceUpdatesAsync(Instances.VersionUpdateSettingsUserControlModel.DownloadSourceIndex == 0), name: "检测资源版本");
-    public static void UpdateResourceAsync(string
-        currentVersion = "") => TaskManager.RunTaskAsync(() => UpdateResource(Instances.VersionUpdateSettingsUserControlModel.DownloadSourceIndex == 0, currentVersion: currentVersion), name: "更新资源");
+    public static void UpdateResourceAsync(string currentVersion = "")
+        => UpdateResourcePackAsync(currentVersion.Equals("v0.0.0", StringComparison.OrdinalIgnoreCase));
     public static void UpdateResourceFromLocalPackageAsync(string packagePath, string currentVersion = "") =>
         TaskManager.RunTaskAsync(
             () => Task.Run(() => UpdateResourceFromLocalPackageCoreAsync(packagePath, currentVersion)),
@@ -519,75 +521,62 @@ public static class VersionChecker
         return summary;
     }
 
+    /// <summary>
+    /// 资源检查走资源包链路（resource + agent + scripts），固定 GitHub，不经过 MirrorChyan。
+    /// 仓库里没有 resource-pack-latest 发布时静默跳过，行为与未接入热更新一致。
+    /// </summary>
     public static async Task CheckForResourceUpdatesAsync(
         bool isGithub = true,
         bool notifyWhenUpToDate = true,
         bool notifyOnError = true)
     {
         Instances.RootViewModel.SetUpdating(true);
-        var url = MaaProcessor.Interface?.Github ?? MaaProcessor.Interface?.Url ?? string.Empty;
-
-        string[] strings = [];
         try
         {
-            if (isGithub)
-            {
-                if (string.IsNullOrWhiteSpace(url))
-                {
-                    ToastHelper.Info(LangKeys.CurrentResourcesNotSupportGitHub.ToLocalization());
-                    Instances.RootViewModel.SetUpdating(false);
-                    return;
-                }
-                strings = GetRepoFromUrl(url);
-            }
-            var resourceVersion = GetResourceVersion();
-            if (string.IsNullOrWhiteSpace(resourceVersion))
-            {
-                Instances.RootViewModel.SetUpdating(false);
-                return;
-            }
+            var interfaceVersion = ResourcePackUpdater.ReadInterfaceVersion();
+            var interfaceFingerprint = ResourcePackUpdater.ComputeInterfaceFingerprint();
+            var localPackVersion = ResourcePackUpdater.GetLocalPackVersion(interfaceVersion, interfaceFingerprint);
+            var result = await ResourcePackUpdater
+                .CheckAsync(localPackVersion, interfaceVersion, interfaceFingerprint, GetLocalVersion())
+                .ConfigureAwait(false);
 
-            string latestVersion = string.Empty;
-            string sha256 = string.Empty;
-            if (isGithub)
+            switch (result.Status)
             {
-                var result = await GetLatestVersionAndDownloadUrlFromGithubAsync(strings[0], strings[1], true, currentVersion: resourceVersion).ConfigureAwait(false);
-                latestVersion = result.latestVersion;
-                sha256 = result.sha256;
-            }
-            else
-                GetDownloadUrlFromMirror(resourceVersion, GetResourceID(), CDK(), out _, out latestVersion, out sha256, out _, onlyCheck: true, currentVersion: resourceVersion);
+                case ResourcePackUpdater.PackCheckStatus.Unavailable:
+                    LoggerHelper.Info("未找到资源包发布信息，已跳过资源热更新检查。");
+                    break;
 
-            if (string.IsNullOrWhiteSpace(latestVersion))
-            {
-                Instances.RootViewModel.SetUpdating(false);
-                return;
-            }
+                case ResourcePackUpdater.PackCheckStatus.InterfaceMismatch:
+                case ResourcePackUpdater.PackCheckStatus.ShellTooOld:
+                    LoggerHelper.Warning($"资源包与当前安装不兼容：{result.Message}");
+                    DispatcherHelper.PostOnMainThread(() =>
+                        Instances.ToastManager.CreateToast().WithTitle(LangKeys.UpdateResource.ToLocalization())
+                            .WithContent(result.Message).Dismiss().After(TimeSpan.FromSeconds(10))
+                            .WithActionButton(LangKeys.Later.ToLocalization(), _ => { }, true, SukiButtonStyles.Basic)
+                            .WithActionButton(LangKeys.Update.ToLocalization(), _ => OpenReleasePage(string.Empty), true)
+                            .Queue());
+                    break;
 
-            if (IsNewVersionAvailable(latestVersion, resourceVersion))
-            {
-                DispatcherHelper.PostOnMainThread(() =>
-                {
-                    Instances.RootViewModel.WindowUpdateInfo = LangKeys.MirrorChyanResourceUpdateShortTip.ToLocalizationFormatted(false, latestVersion);
+                case ResourcePackUpdater.PackCheckStatus.Invalid:
+                    LoggerHelper.Warning($"资源包版本信息异常：{result.Message}");
+                    if (notifyOnError)
+                        ToastHelper.Warn(LangKeys.UpdateResource.ToLocalization(), result.Message, -1);
+                    break;
 
-                    Instances.ToastManager.CreateToast().WithTitle(LangKeys.UpdateResource.ToLocalization())
-                        .WithContent(CreateUpdateToastContent(
-                            LangKeys.ResourceOption.ToLocalization(), latestVersion)).Dismiss().After(TimeSpan.FromSeconds(6))
-                        .WithActionButton(LangKeys.Later.ToLocalization(), _ => { }, true, SukiButtonStyles.Basic)
-                        .WithActionButton(LangKeys.Update.ToLocalization(), _ =>
-                        {
-                            if (!Instances.RootViewModel.IsUpdating)
-                                UpdateResourceAsync();
-                            else
-                                ToastHelper.Warn(LangKeys.Warning.ToLocalization(), LangKeys.CurrentOtherUpdatingTask.ToLocalization());
-                        }, true).Queue();
-                });
-                Instances.RootViewModel.TempResourceUpdateAction = () =>
+                case ResourcePackUpdater.PackCheckStatus.UpdateAvailable:
+                    if (IsEnvEnabled(PackAutoUpdateDebugEnv))
+                    {
+                        LoggerHelper.Warning("调试：MFA_DEBUG_PACK_AUTO 已启用，跳过提示直接执行资源包热更新。");
+                        await RunResourcePackUpdateAsync(force: false).ConfigureAwait(false);
+                        return;
+                    }
+                    var latestPackVersion = result.Remote?.Descriptor.PackVersion ?? string.Empty;
                     DispatcherHelper.PostOnMainThread(() =>
                     {
+                        Instances.RootViewModel.WindowUpdateInfo = LangKeys.MirrorChyanResourceUpdateShortTip.ToLocalizationFormatted(false, latestPackVersion);
                         Instances.ToastManager.CreateToast().WithTitle(LangKeys.UpdateResource.ToLocalization())
-                            .WithContent(CreateUpdateToastContent(
-                                LangKeys.ResourceOption.ToLocalization(), latestVersion)).Dismiss().After(TimeSpan.FromSeconds(6))
+                            .WithContent($"发现资源包 {latestPackVersion}（配置 {interfaceVersion}），更新后从下次任务开始生效。")
+                            .Dismiss().After(TimeSpan.FromSeconds(8))
                             .WithActionButton(LangKeys.Later.ToLocalization(), _ => { }, true, SukiButtonStyles.Basic)
                             .WithActionButton(LangKeys.Update.ToLocalization(), _ =>
                             {
@@ -597,25 +586,31 @@ public static class VersionChecker
                                     ToastHelper.Warn(LangKeys.Warning.ToLocalization(), LangKeys.CurrentOtherUpdatingTask.ToLocalization());
                             }, true).Queue();
                     });
+                    Instances.RootViewModel.TempResourceUpdateAction = () =>
+                        DispatcherHelper.PostOnMainThread(() =>
+                            Instances.ToastManager.CreateToast().WithTitle(LangKeys.UpdateResource.ToLocalization())
+                                .WithContent($"发现资源包 {latestPackVersion}（配置 {interfaceVersion}），更新后从下次任务开始生效。")
+                                .Dismiss().After(TimeSpan.FromSeconds(8))
+                                .WithActionButton(LangKeys.Later.ToLocalization(), _ => { }, true, SukiButtonStyles.Basic)
+                                .WithActionButton(LangKeys.Update.ToLocalization(), _ => UpdateResourceAsync(), true)
+                                .Queue());
+                    break;
+
+                default:
+                    if (notifyWhenUpToDate)
+                        ToastHelper.Info(LangKeys.ResourcesAreLatestVersion.ToLocalization());
+                    break;
             }
-            else
-            {
-                if (notifyWhenUpToDate)
-                    ToastHelper.Info(LangKeys.ResourcesAreLatestVersion.ToLocalization());
-            }
-            Instances.RootViewModel.SetUpdating(false);
         }
         catch (Exception ex)
         {
-            Instances.RootViewModel.SetUpdating(false);
             if (notifyOnError)
-            {
-                if (ex.Message.Contains("resource not found"))
-                    ToastHelper.Error(LangKeys.CurrentResourcesNotSupportMirror.ToLocalization());
-                else
-                    ToastHelper.Error(LangKeys.ErrorWhenCheck.ToLocalizationFormatted(true, "Resource"), ex.Message, -1);
-            }
-            LoggerHelper.Error($"检查资源更新失败：来源={(isGithub ? "GitHub" : "Mirror")}，原因={ex.Message}", ex);
+                ToastHelper.Error(LangKeys.ErrorWhenCheck.ToLocalizationFormatted(true, "Resource"), ex.Message, -1);
+            LoggerHelper.Error($"检查资源更新失败：来源=GitHub，原因={ex.Message}", ex);
+        }
+        finally
+        {
+            Instances.RootViewModel.SetUpdating(false);
         }
     }
 
@@ -727,6 +722,15 @@ public static class VersionChecker
 
     public async static Task UpdateResource(bool isGithub = true, bool closeDialog = false, bool noDialog = false, Action action = null, string currentVersion = "", string? localPackagePath = null)
     {
+        // 没有本地包时走资源包热更新：只替换 resource / agent / scripts，不写 interface.json、不重启壳。
+        if (string.IsNullOrWhiteSpace(localPackagePath))
+        {
+            await RunResourcePackUpdateAsync(
+                currentVersion.Equals("v0.0.0", StringComparison.OrdinalIgnoreCase),
+                action).ConfigureAwait(false);
+            return;
+        }
+
         try
         {
             await UpdateResourceCore(isGithub, closeDialog, noDialog, action, currentVersion, localPackagePath);
@@ -744,6 +748,140 @@ public static class VersionChecker
         finally
         {
             _activeResourceUpdateToast = null;
+        }
+    }
+
+    /// <summary>
+    /// 资源包热更新入口。替换前先停任务与 Agent；成功后不重启壳，新配置从下次任务开始生效。
+    /// </summary>
+    public static void UpdateResourcePackAsync(bool force = false)
+    {
+        if (Instances.RootViewModel.IsUpdating)
+        {
+            ToastHelper.Warn(LangKeys.Warning.ToLocalization(), LangKeys.CurrentOtherUpdatingTask.ToLocalization());
+            return;
+        }
+
+        if (Instances.RootViewModel.IsRunning)
+        {
+            DispatcherHelper.PostOnMainThread(() =>
+                Instances.ToastManager.CreateToast()
+                    .WithTitle(LangKeys.UpdateResource.ToLocalization())
+                    .WithContent("更新会先停止正在运行的任务；新配置从下次任务开始生效。")
+                    .Dismiss().After(TimeSpan.FromSeconds(15))
+                    .WithActionButton(LangKeys.ButtonCancel.ToLocalization(), _ => { }, true, SukiButtonStyles.Basic)
+                    .WithActionButton("停止并更新", _ => TaskManager.RunTaskAsync(
+                        () => RunResourcePackUpdateAsync(force), name: "更新资源"), true)
+                    .Queue());
+            return;
+        }
+
+        TaskManager.RunTaskAsync(() => RunResourcePackUpdateAsync(force), name: "更新资源");
+    }
+
+    private static async Task RunResourcePackUpdateAsync(bool force, Action? action = null)
+    {
+        shouldShowToast = false;
+        Instances.RootViewModel.SetUpdating(true);
+        ProgressBar? progress = null;
+        TextBlock? statusText = null;
+        ISukiToast? toast = null;
+        try
+        {
+            var panel = await DispatcherHelper.RunOnMainThreadAsync(() =>
+            {
+                progress = new ProgressBar
+                {
+                    Height = 10,
+                    Value = 0,
+                    Margin = new Thickness(0, 5),
+                    ShowProgressText = true
+                };
+                statusText = new TextBlock { Text = "正在检查资源包…" };
+                StackPanel stackPanel = new();
+                stackPanel.Children.Add(progress);
+                stackPanel.Children.Add(statusText);
+                return stackPanel;
+            });
+            toast = await DispatcherHelper.RunOnMainThreadAsync(() =>
+                Instances.ToastManager.CreateToast()
+                    .WithTitle(LangKeys.UpdateResource.ToLocalization())
+                    .WithContent(panel).Queue());
+
+            var interfaceVersion = ResourcePackUpdater.ReadInterfaceVersion();
+            var interfaceFingerprint = ResourcePackUpdater.ComputeInterfaceFingerprint();
+            var localPackVersion = ResourcePackUpdater.GetLocalPackVersion(interfaceVersion, interfaceFingerprint);
+            var check = await ResourcePackUpdater
+                .CheckAsync(localPackVersion, interfaceVersion, interfaceFingerprint, GetLocalVersion())
+                .ConfigureAwait(false);
+
+            switch (check.Status)
+            {
+                case ResourcePackUpdater.PackCheckStatus.Unavailable:
+                    ToastHelper.Warn(LangKeys.UpdateResource.ToLocalization(),
+                        "当前仓库还没有资源包发布（resource-pack-latest），资源热更新暂不可用。");
+                    return;
+                case ResourcePackUpdater.PackCheckStatus.InterfaceMismatch:
+                case ResourcePackUpdater.PackCheckStatus.ShellTooOld:
+                case ResourcePackUpdater.PackCheckStatus.Invalid:
+                    ToastHelper.Warn(LangKeys.UpdateResource.ToLocalization(), check.Message, -1);
+                    return;
+            }
+
+            if (check.Remote == null)
+            {
+                ToastHelper.Warn(LangKeys.UpdateResource.ToLocalization(), "资源包信息不完整，已取消更新。");
+                return;
+            }
+
+            if (check.Status == ResourcePackUpdater.PackCheckStatus.UpToDate && !force)
+            {
+                ToastHelper.Info(LangKeys.ResourcesAreLatestVersion.ToLocalization());
+                return;
+            }
+
+            SetStatusText(statusText, null, "正在停止任务与 Agent…");
+            await StopTaskersAndAgentsForUpdateAsync().ConfigureAwait(false);
+
+            var progressReporter = new Progress<ResourcePackUpdater.PackProgress>(value =>
+            {
+                SetProgress(progress, value.Percent);
+                SetStatusText(statusText, null, value.Status);
+            });
+            var result = await ResourcePackUpdater.ApplyAsync(
+                check.Remote,
+                interfaceVersion,
+                interfaceFingerprint,
+                GetLocalVersion(),
+                progressReporter).ConfigureAwait(false);
+
+            if (!result.Success)
+            {
+                ToastHelper.Error(LangKeys.UpdateResource.ToLocalization(), result.Message, -1);
+                return;
+            }
+
+            Dismiss(toast);
+            toast = null;
+            Instances.VersionUpdateSettingsUserControlModel.RefreshResourceVersionDisplay();
+            shouldShowToast = true;
+            action?.Invoke();
+            ToastHelper.Info(
+                $"资源包 {result.PackVersion} 已安装",
+                $"配置版本 {interfaceVersion}。新配置从下次任务开始生效；更新前停止的任务不会自动恢复。",
+                8000);
+        }
+        catch (Exception ex)
+        {
+            ToastHelper.Error(LangKeys.UpdateResource.ToLocalization(), $"资源包更新失败：{ex.Message}", -1);
+            LoggerHelper.Error($"资源包更新失败：{ex.Message}", ex);
+        }
+        finally
+        {
+            Dismiss(toast);
+            _activeResourceUpdateToast = null;
+            Instances.RootViewModel.SetUpdating(false);
+            Instances.InstanceTabBarViewModel.ActiveTab?.TaskQueueViewModel.ClearDownloadProgress();
         }
     }
 
