@@ -1514,7 +1514,7 @@ public partial class TaskQueueViewModel : ViewModelBase, IDisposable
     private void ClearActiveAdbDeviceConfig()
     {
         Processor.Config.AdbDevice.Name = string.Empty;
-        Processor.Config.AdbDevice.AdbPath = "adb";
+        Processor.Config.AdbDevice.AdbPath = string.Empty;
         Processor.Config.AdbDevice.AdbSerial = string.Empty;
         Processor.Config.AdbDevice.Config = "{}";
         Processor.Config.AdbDevice.Info = null;
@@ -2276,8 +2276,16 @@ public partial class TaskQueueViewModel : ViewModelBase, IDisposable
         var savedSerial = Processor.Config.AdbDevice.AdbSerial;
         if (IsNetworkAdbSerial(savedSerial))
         {
-            LoggerHelper.Info($"刷新 ADB 设备前尝试重新连接已保存目标：{savedSerial}");
-            ProcessHelper.ReconnectByAdb(Processor.Config.AdbDevice.AdbPath, savedSerial);
+            var adbPath = Processor.ResolveCurrentAdbPath();
+            if (adbPath.Length > 0)
+            {
+                LoggerHelper.Info($"刷新 ADB 设备前尝试重新连接已保存目标：{savedSerial}");
+                ProcessHelper.ReconnectByAdb(adbPath, savedSerial);
+            }
+            else
+            {
+                LoggerHelper.Warn($"跳过重连已保存目标 {savedSerial}：未找到 adb.exe，请在设置中指定路径");
+            }
         }
 
         var devices = MaaProcessor.Toolkit.AdbDevice.Find().ToList();

@@ -47,7 +47,7 @@ public static class JsonHelper
             EnsureDirectory(filePath);
             // 先尝试正常序列化
             var json = TrySerialize(config, converters);
-            File.WriteAllText(filePath, json);
+            AtomicFileWriter.WriteAllText(filePath, json);
         }
         catch (Exception ex) when (IsThreadAccessException(ex))
         {

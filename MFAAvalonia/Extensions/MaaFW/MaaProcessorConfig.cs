@@ -36,7 +36,12 @@ public class DesktopWindowCoreConfig
 public class AdbDeviceCoreConfig
 {
     public string Name { get; set; } = string.Empty;
-    public string AdbPath { get; set; } = "adb";
+
+    /// <summary>
+    /// adb 路径。默认留空，由 <see cref="AdbPathResolver"/> 在连接前解析成绝对路径；
+    /// 不要把裸 "adb" 当作默认值（PATH 里通常没有 adb，会导致连接直接失败）。
+    /// </summary>
+    public string AdbPath { get; set; } = string.Empty;
     public string AdbSerial { get; set; } = "";
     public string Config { get; set; } = "{}";
     public AdbInputMethods Input { get; set; } = AdbInputMethods.Default;
@@ -58,6 +63,22 @@ internal sealed record AdbControllerSnapshot(
         {
             return new(device.AdbPath, device.AdbSerial, device.ScreenCap, device.Input,
                 string.IsNullOrWhiteSpace(device.Config) ? "{}" : device.Config);
+        }
+    }
+
+    /// <summary>
+    /// 与 <see cref="Capture"/> 相同，但会把 AdbPath 解析成真实存在的绝对路径。
+    /// 控制器创建与“当前选择是否仍然匹配”的比较必须同时使用本方法，否则两边不一致会反复重连。
+    /// 解析失败时保留原始值，由调用方报错。
+    /// </summary>
+    public static AdbControllerSnapshot CaptureResolved(AdbDeviceCoreConfig device, string? softwarePath)
+    {
+        lock (device)
+        {
+            var snapshot = Capture(device);
+            return AdbPathResolver.TryResolve(device.AdbPath, device.Name, softwarePath, out var resolved, out _)
+                ? snapshot with { AdbPath = resolved }
+                : snapshot;
         }
     }
 }

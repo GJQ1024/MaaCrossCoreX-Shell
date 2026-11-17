@@ -25,6 +25,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Versioning;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Bitmap = Avalonia.Media.Imaging.Bitmap;
@@ -1027,9 +1028,22 @@ public class MaaProcessor
             return false;
         if (_adbControllerSnapshots.TryGetValue(controller, out var snapshot))
             return ViewModel?.CurrentController == MaaControllerTypes.Adb
-                && snapshot == AdbControllerSnapshot.Capture(Config.AdbDevice);
+                && snapshot == AdbControllerSnapshot.CaptureResolved(Config.AdbDevice, CurrentSoftwarePath);
         return true;
     }
+
+    /// <summary>设置里配置的模拟器程序路径（MuMuManager.exe），用于解析 adb 所在目录。</summary>
+    private string CurrentSoftwarePath =>
+        InstanceConfiguration.GetValue(ConfigurationKeys.SoftwarePath, string.Empty);
+
+    /// <summary>
+    /// 当前设备解析后的 adb 绝对路径；解析不到时返回空串，调用方应跳过并记录，不要回退成裸 "adb"。
+    /// </summary>
+    public string ResolveCurrentAdbPath() =>
+        AdbPathResolver.TryResolve(Config.AdbDevice?.AdbPath, Config.AdbDevice?.Name, CurrentSoftwarePath,
+            out var adbPath, out _)
+            ? adbPath
+            : string.Empty;
 
     // 目标设备身份：运行时通过环境变量 MFA_TARGET_ANDROID_ID 提供，不入库。
     // 未提供时不做指纹过滤；多台装了游戏的设备按歧义规则停止。
@@ -1047,8 +1061,13 @@ public class MaaProcessor
             return (true, string.Empty);
 
         var serial = Config.AdbDevice?.AdbSerial ?? string.Empty;
-        var adbPath = ResolveAdbPath(Config.AdbDevice?.AdbPath,
-            InstanceConfiguration.GetValue(ConfigurationKeys.SoftwarePath, string.Empty));
+        if (!AdbPathResolver.TryResolve(Config.AdbDevice?.AdbPath, Config.AdbDevice?.Name, CurrentSoftwarePath,
+                out var adbPath, out var adbSource))
+        {
+            return (false, "设备身份校验失败：未找到 adb.exe，请在设置中指定路径。已拒绝执行任务。");
+        }
+
+        LoggerHelper.Info($"设备身份校验使用 adb：{adbPath}（来源={adbSource}）");
         var (success, output) = RunAdb(adbPath, serial, "shell settings get secure android_id");
         var actual = output.Trim();
 
@@ -1066,30 +1085,6 @@ public class MaaProcessor
 
         LoggerHelper.Info($"设备身份校验通过：serial={serial}, android_id={actual}");
         return (true, string.Empty);
-    }
-
-    private static string ResolveAdbPath(string? configured, string? softwarePath)
-    {
-        if (!string.IsNullOrWhiteSpace(configured) && File.Exists(configured))
-            return configured;
-
-        // SoftwarePath 指向 <MuMu 安装目录>\nx_main\MuMuManager.exe（旧版为 \shell\MuMuManager.exe）
-        if (!string.IsNullOrWhiteSpace(softwarePath) && File.Exists(softwarePath))
-        {
-            var installRoot = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(softwarePath)!, ".."));
-            foreach (var candidate in new[]
-                     {
-                         Path.Combine(installRoot, "nx_device", "12.0", "shell", "adb.exe"),
-                         Path.Combine(installRoot, "shell", "adb.exe"),
-                         Path.Combine(installRoot, "adb.exe"),
-                     })
-            {
-                if (File.Exists(candidate))
-                    return candidate;
-            }
-        }
-
-        return "adb";
     }
 
     private static (bool Success, string Output) RunAdb(string adbPath, string serial, string arguments)
@@ -2577,7 +2572,17 @@ public class MaaProcessor
         switch (controllerType)
         {
             case MaaControllerTypes.Adb:
-                adbSnapshot ??= AdbControllerSnapshot.Capture(Config.AdbDevice);
+                adbSnapshot ??= AdbControllerSnapshot.CaptureResolved(Config.AdbDevice, CurrentSoftwarePath);
+                if (!AdbPathResolver.IsUsable(adbSnapshot.AdbPath))
+                {
+                    // 裸 "adb" 交给控制器只会在 15ms 内连接失败，且日志看不出原因。
+                    // 这里直接拦下并给出可操作的提示。
+                    var message = "未找到 adb.exe，请在设置中指定路径";
+                    LoggerHelper.Error(
+                        $"{message}：配置值=\"{Config.AdbDevice.AdbPath}\"，设备名称=\"{Config.AdbDevice.Name}\"，模拟器路径=\"{CurrentSoftwarePath}\"");
+                    throw new MaaException(message);
+                }
+
                 if (logConfig)
                 {
                     LoggerHelper.Info($"设备名称：{Config.AdbDevice.Name}");
@@ -2976,7 +2981,9 @@ public class MaaProcessor
                 FileName = exec,
                 WorkingDirectory = ResourceBase,
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             };
             foreach (var arg in preTask.Args ?? []) info.ArgumentList.Add(arg);
             if (preTask.Option is { Count: > 0 })
@@ -2985,12 +2992,44 @@ public class MaaProcessor
             LoggerHelper.Info($"执行 pretask：{preTask.Name ?? preTask.Exec}");
             executed = true;
             using var process = Process.Start(info) ?? throw new InvalidOperationException($"无法启动 pretask: {preTask.Exec}");
+            // 必须先挂读取再等待退出，否则输出量超过管道缓冲区时子进程会阻塞在写 stdout 上。
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
             await process.WaitForExitAsync(token);
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
             if (process.ExitCode != 0)
-                throw new InvalidOperationException($"pretask '{preTask.Name ?? preTask.Exec}' exited with code {process.ExitCode}");
+            {
+                // 脚本失败原因只存在于输出里，不落日志就等于没有排查线索。
+                throw new InvalidOperationException(
+                    $"pretask '{preTask.Name ?? preTask.Exec}' exited with code {process.ExitCode}"
+                    + FormatPreTaskOutput(stdout, stderr));
+            }
+            if (!string.IsNullOrWhiteSpace(stdout) || !string.IsNullOrWhiteSpace(stderr))
+            {
+                LoggerHelper.Info(
+                    $"pretask '{preTask.Name ?? preTask.Exec}' 输出{FormatPreTaskOutput(stdout, stderr)}");
+            }
         }
 
         return executed;
+    }
+
+    private static string FormatPreTaskOutput(string? stdout, string? stderr)
+    {
+        const int maxLength = 2000;
+        var builder = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(stderr))
+            builder.Append("，stderr=").Append(TrimOutput(stderr, maxLength));
+        if (!string.IsNullOrWhiteSpace(stdout))
+            builder.Append("，stdout=").Append(TrimOutput(stdout, maxLength));
+        return builder.Length == 0 ? "（无输出）" : builder.ToString();
+    }
+
+    private static string TrimOutput(string text, int maxLength)
+    {
+        var normalized = text.Trim().Replace('\r', ' ').Replace('\n', ' ');
+        return normalized.Length <= maxLength ? normalized : normalized[^maxLength..];
     }
 
     private static bool ShouldTraceNodeEvent(JObject details, string message)
@@ -3647,17 +3686,38 @@ public class MaaProcessor
 
     public async Task RestartAdb()
     {
-        await ProcessHelper.RestartAdbAsync(Config.AdbDevice.AdbPath);
+        var adbPath = ResolveCurrentAdbPath();
+        if (adbPath.Length == 0)
+        {
+            LoggerHelper.Warn("跳过重启 adb：未找到 adb.exe，请在设置中指定路径");
+            return;
+        }
+
+        await ProcessHelper.RestartAdbAsync(adbPath);
     }
 
     public async Task ReconnectByAdb()
     {
-        await ProcessHelper.ReconnectByAdbAsync(Config.AdbDevice.AdbPath, Config.AdbDevice.AdbSerial);
+        var adbPath = ResolveCurrentAdbPath();
+        if (adbPath.Length == 0)
+        {
+            LoggerHelper.Warn("跳过重连 adb：未找到 adb.exe，请在设置中指定路径");
+            return;
+        }
+
+        await ProcessHelper.ReconnectByAdbAsync(adbPath, Config.AdbDevice.AdbSerial);
     }
 
     public async Task HardRestartAdb()
     {
-        ProcessHelper.HardRestartAdb(Config.AdbDevice.AdbPath);
+        var adbPath = ResolveCurrentAdbPath();
+        if (adbPath.Length == 0)
+        {
+            LoggerHelper.Warn("跳过强制重启 adb：未找到 adb.exe，请在设置中指定路径");
+            return;
+        }
+
+        ProcessHelper.HardRestartAdb(adbPath);
     }
 
     public async Task ApplyConnectionTargetAsync(Func<bool> applyTarget)

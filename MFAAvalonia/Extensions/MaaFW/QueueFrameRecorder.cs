@@ -21,7 +21,8 @@ namespace MFAAvalonia.Extensions.MaaFW;
 /// </summary>
 internal sealed class QueueFrameRecorder : IDisposable
 {
-    private const string DefaultRoot = @"E:\MAA-screenshots";
+    // 默认落到程序目录下的 screenshots，不再硬编码开发机路径。
+    private static readonly string DefaultRoot = Path.Combine(AppPaths.InstallRoot, "screenshots");
     private const int DefaultIntervalMs = 1000;
     private const string StartupTaskName = "启动准备";
     private const int MaxConsecutiveDiskFailures = 5;
